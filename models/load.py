@@ -13,7 +13,8 @@ from typing import List, Optional, Union
 from huggingface_hub import HfFileSystem, hf_hub_download
 import torch
 from conf import ModelConfig
-from models import get_llm_backbone_and_tokenizer, get_vision_backbone_and_transform, GLOBAL_REGISTRY, MODEL_REGISTRY
+from models.materialize import get_llm_backbone_and_tokenizer, get_vision_backbone_and_transform
+from models.registry import GLOBAL_REGISTRY, MODEL_REGISTRY
 from models.vlms import PrismaticVLM
 from overwatch import initialize_overwatch
 
@@ -225,7 +226,6 @@ def load_vla(
     hf_token: Optional[str] = None,
     cache_dir: Optional[Union[str, Path]] = None,
     load_for_training: bool = False,
-    model_type: str = "pretrained",
     class_dropout_prob: float=0.0,
     use_diff: bool = False,
     need_to_sub: int = 0,

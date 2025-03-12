@@ -1,11 +1,11 @@
-ENVIRONMENT=/share/miniconda3/envs/4dvla_diff
+ENVIRONMENT=/share/miniconda3/envs/hybridvla
 source /share/miniconda3/bin/activate $ENVIRONMENT
-cd /share/code/4D_VLA/CogACT
+cd /share/code/Hybrid-VLA
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 export HF_HOME=/share/huggingface
 
 FUTURE_ACTION_STEPS=0
-SETTING=cogact_pretrain_freeze_vit_window${FUTURE_ACTION_STEPS}_diff+ar_boi_eoi_state_mlp_ptx
+SETTING=reconstruction_test
 FREEZE_VISON=true
 FREEZE_LLM=false
 LOAD_DIT=false
@@ -57,7 +57,6 @@ torchrun --standalone --nnodes ${NODES} --nproc-per-node ${NUM_GPUS} train.py \
   --class_dropout_prob ${CLASS_DROPOUT_PROB} \
   --use_diff ${USE_DIFF} \
   --ar_diff_loss ${AR_DIFF_LOSS} \
-  --action_model_type DiT-B \
   --is_resume False \
   --hf_token ${HF_TOKEN} \
   --pretrained_checkpoint "/share/huggingface/hub/models--CogACT--CogACT-Base/snapshots/6550bf0992f162fc5d74f14ffee30771a9433363/checkpoints/CogACT-Base.pt"

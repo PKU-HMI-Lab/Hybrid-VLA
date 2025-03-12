@@ -31,7 +31,8 @@ from overwatch import initialize_overwatch
 from util import set_global_seed
 from vla import get_vla_dataset_and_collator, save_dataset_statistics, ActionTokenizer
 
-from training import VLAMetrics, get_train_strategy
+from training.metrics import VLAMetrics
+from training import get_train_strategy
 from conf import VLAConfig, VLARegistry
 from models import load, load_vla, load_openvla
 from models import HybridVLA
@@ -89,10 +90,7 @@ class TrainConfig:
     load_all_data_for_training: bool = True                         # Load all training data 
     future_action_window_size: int = 15                             # Action chunking, predicting future actions + current action
     past_action_window_size: int = 0                                # Action history window size, not used now, set to be 0 
-    action_model_type: str = 'DiT-B'                                # Action model type, chose from ['DiT-S', 'DiT-B', 'DiT-L']
-    use_ema: bool = False                                           # EMA version of action model
     action_dim: int = 7                                             # Dimension of action space
-    load_dit: bool = True  
     class_dropout_prob: float = 0.
     action_tokenizer_exist: bool = False
     use_diff: bool = False
@@ -193,17 +191,12 @@ def train(cfg: TrainConfig) -> None:
             assert int(re.search("step-(.+?)-", cfg.pretrained_checkpoint.name).group(1)) == cfg.resume_step
             assert int(re.search("epoch-(.+?)-", cfg.pretrained_checkpoint.name).group(1)) == cfg.resume_epoch
         overwatch.info("Loading VLA Checkpoint")
-        if cfg.use_ema:
-            overwatch.info("Loading EMA of Diffusion")
         vla = load_vla(cfg.pretrained_checkpoint, 
                         hf_token=hf_token, 
                         load_for_training=True, 
-                        action_model_type=cfg.action_model_type, 
                         action_dim=cfg.action_dim,
                         future_action_window_size=cfg.future_action_window_size,
                         past_action_window_size=cfg.past_action_window_size,
-                        use_ema=cfg.use_ema,
-                        load_dit=cfg.load_dit,
                         class_dropout_prob=cfg.class_dropout_prob,
                         use_diff=cfg.use_diff,
                         need_to_sub = cfg.need_to_sub,
@@ -211,17 +204,12 @@ def train(cfg: TrainConfig) -> None:
     elif cfg.pretrained_checkpoint is not None and 'openvla' in cfg.pretrained_checkpoint:
         vlm = load_openvla(cfg.pretrained_checkpoint, hf_token=hf_token, load_for_training=True, use_diff=cfg.use_diff, action_dim=cfg.action_dim)
         overwatch.info("Creating VLA from Base VLM")
-        if cfg.use_ema:
-            overwatch.info("Creating EMA for Diffusion")
         action_tokenizer = ActionTokenizer(vlm.llm_backbone.get_tokenizer(), cfg.need_to_sub)
         vla = HybridVLA(vlm, 
                     action_tokenizer,
-                    action_model_type=cfg.action_model_type,
                     action_dim=cfg.action_dim,
                     future_action_window_size=cfg.future_action_window_size,
                     past_action_window_size=cfg.past_action_window_size,
-                    use_ema=cfg.use_ema,
-                    load_dit=cfg.load_dit,
                     use_diff = cfg.use_diff,
                     )
         # del this variable to avoid bugs. The vlm shouldn't be used anymore
@@ -230,17 +218,12 @@ def train(cfg: TrainConfig) -> None:
     else:
         vlm = load(cfg.vla.base_vlm, hf_token=hf_token, load_for_training=True, use_diff=cfg.use_diff, action_dim=cfg.action_dim)
         overwatch.info("Creating VLA from Base VLM")
-        if cfg.use_ema:
-            overwatch.info("Creating EMA for Diffusion")
         action_tokenizer = ActionTokenizer(vlm.llm_backbone.get_tokenizer(), cfg.need_to_sub)
         vla = HybridVLA(vlm, 
                     action_tokenizer,
-                    action_model_type=cfg.action_model_type,
                     action_dim=cfg.action_dim,
                     future_action_window_size=cfg.future_action_window_size,
                     past_action_window_size=cfg.past_action_window_size,
-                    use_ema=cfg.use_ema,
-                    load_dit=cfg.load_dit,
                     use_diff = cfg.use_diff,
                     )
         # del this variable to avoid bugs. The vlm shouldn't be used anymore
@@ -285,20 +268,6 @@ def train(cfg: TrainConfig) -> None:
     overwatch.info(
         f"# Parameters (in millions): {num_params / 10**6:.3f} Total, {num_trainable_params / 10**6:.3f} Trainable"
     )
-
-    # def print_trainable_params(model):
-    #     total_trainable_params = 0
-    #     print(f"{'Layer Name':<30} {'Trainable Parameter Count':>25}")
-    #     print("=" * 60)
-    #     for name, param in model.named_parameters():
-    #         # if param.requires_grad: 
-    #         trainable_params = param.numel()
-    #         total_trainable_params += trainable_params
-    #         print(f"{name:<30} {trainable_params:>25}")
-    #     print("=" * 60)
-    #     print(f"{'Total Trainable Parameters':<30} {total_trainable_params:>25}")
-
-    # print_trainable_params(vla)
 
     overwatch.info(f"Creating VLA Open-X Dataset with Mixture `{cfg.vla.data_mix}`")
     vla_dataset, _, collator = get_vla_dataset_and_collator(

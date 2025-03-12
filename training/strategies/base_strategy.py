@@ -21,7 +21,7 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset, DistributedSampler, IterableDataset
 
 from models.vlms import PrismaticVLM
-from training import Metrics, VLAMetrics
+from training.metrics import Metrics, VLAMetrics
 from models import HybridVLA
 from util import SplitModalitySampler, check_bloat16_supported, PaddedCollatorForActionPrediction, PaddedCollatorForLanguageModeling
 from overwatch import initialize_overwatch
@@ -311,13 +311,6 @@ class TrainingStrategy(ABC):
                             use_diff=True
                         )
                         if ar_diff_loss:
-                            # output: CausalLMOutputWithPast = self.vlm(
-                            #     input_ids=batch["input_ids"],
-                            #     attention_mask=batch["attention_mask"],
-                            #     pixel_values=batch["pixel_values"],
-                            #     labels=batch["labels"],
-                            #     use_diff=False
-                            # )
                             loss = loss + output.loss
                     else:
                         # [Contract] self.vlm.forward() must automatically compute `loss` and return!
@@ -335,10 +328,6 @@ class TrainingStrategy(ABC):
                 
                 normalized_loss = loss / self.grad_accumulation_steps
                 normalized_loss.backward()
-
-                # for param_group in self.optimizer.param_groups:
-                #     for param in param_group['params']:
-                #         print(param.size())
 
                 # === Gradient Step ===
                 # Step =>> Only if Done w/ Gradient Accumulation
@@ -368,16 +357,6 @@ class TrainingStrategy(ABC):
                                 metrics.run_dir, metrics.global_step, epoch, loss.item(), only_trainable=not save_full_model
                             )
                             dist.barrier()
-
-                    # if (self.max_steps is not None and metrics.global_step >= self.max_steps) or (
-                    #     (metrics.global_step % (self.epochs * math.ceil((len(dataloader) / overwatch.world_size() / self.grad_accumulation_steps)))) == 0
-                    # ):
-                    #     # terminate=True
-
-                    #     self.save_checkpoint(
-                    #         metrics.run_dir, metrics.global_step, epoch, loss.item(), only_trainable=not save_full_model
-                    #     )
-                    #     dist.barrier()
 
                     if metrics.global_step>=(self.epochs * math.ceil((len(dataloader) / overwatch.world_size() / self.grad_accumulation_steps))):
                         return
