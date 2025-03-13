@@ -25,7 +25,6 @@ Mengzhen Liu, Chengkai Hou, Mengdi Zhao, KC alex Zhou, Pheng-Ann Heng, Shanghang
 
 - The training config and code will be officially released as soon as possible!
 
-
 ## 📦 Installation
 
 The code is built using Python 3.10, we also recommand to use Python above Python 3.10. We require PyTorch >= 2.2.0 and CUDA >= 12.0 (It may run with lower versions, but we have not tested it).
@@ -57,8 +56,6 @@ ninja --version; echo $?
 pip install "flash-attn==2.5.5" --no-build-isolation
 ```
 
-
-
 ## 🧩 Framework
 
 Our code is built based on [OpenVLA](https://github.com/openvla/openvla) and [CogACT](https://github.com/microsoft/CogACT) and is organized in the following framework:
@@ -67,6 +64,13 @@ Our code is built based on [OpenVLA](https://github.com/openvla/openvla) and [Co
 - `scripts`: scripts for training
 - `training`: strategies and utils for training
 - `models`: models including hybridvla models and backbones
+
+## 📈Pretrain Parameter
+
+We release our pretrained model's parameters as follows:
+
+- [Robotic Large-Scale Pretrained Checkpoint](https://github.com/PKU-HMI-Lab/Hybrid-VLA/edit/main/README.md)
+- [Simulation-Finetuned Checkpoint](https://github.com/PKU-HMI-Lab/Hybrid-VLA/edit/main/README.md)
 
 ## 💡Getting Started
 
@@ -103,7 +107,6 @@ actions_diff, actions_ar, _, _ = model.predict_action_diff_ar(
           use_ddim = True,                   # use DDIM sampling
           num_ddim_steps = 10,               # number of steps for DDIM sampling
         )
-
 ```
 
 ## 🔍Test in RLBench
@@ -118,8 +121,6 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$COPPELIASIM_ROOT
 export QT_QPA_PLATFORM_PLUGIN_PATH=$COPPELIASIM_ROOT
 ```
 
-
 ## 📜️ License
-
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
