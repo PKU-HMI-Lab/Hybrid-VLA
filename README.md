@@ -19,7 +19,7 @@ Mengzhen Liu, Chengkai Hou, Mengdi Zhao, KC alex Zhou, Pheng-Ann Heng, Shanghang
 
 ## ✨ News ✨
 
-- [2025/03/13] Lift3D is now live on arXiv! The pre-trained checkpoint on a large-scale robotic dataset has also been released.🚀 
+- [2025/03/13] HybridVLA is now live on arXiv! The pre-trained checkpoint on a large-scale robotic dataset has also been released.🚀 
 
 ## ✨ Coming soon ✨
 
