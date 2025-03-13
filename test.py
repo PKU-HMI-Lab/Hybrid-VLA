@@ -45,22 +45,3 @@ def model():
     # print(actions, _)
 
 model()
-
-
-
-####### infer注意: 尝试两种infer，一种是直接读actions[0]，另一种参考如下
-'''
-action计算方法: 论文公式(4),K设置为2:
-
-t = 0 的时候 就是action_t0_output[0]
-t = 1 的时候 w0*action_t0_output[1]+w1*action_t1_output[0]
-t = 2 的时候 w0*action_t0_output[2]+w1*action_t1_output[1]+w2*action_t2_output[0]
-t = 3 的时候 w0*action_t1_output[2]+w1*action_t2_output[1]+w2*action_t3_output[0]
-t = 3 的时候 w0*action_t2_output[2]+w1*action_t3_output[1]+w2*action_t4_output[0]
-.
-.
-.
-
-w的计算方法: 论文公式(5)
-
-'''

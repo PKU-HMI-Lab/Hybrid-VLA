@@ -1,14 +1,14 @@
-ENVIRONMENT=/share/miniconda3/envs/4dvla_diff
-source /share/miniconda3/bin/activate $ENVIRONMENT
-cd /share/code/4D_VLA/CogACT
+source /share/miniconda3/bin/activate /share/miniconda3/envs/4dvla_diff
+cd /share/code/Hybrid-VLA
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 export HF_HOME=/share/huggingface
+export PYTHONPATH=/share/code/Hybrid-VLA/models/vlms:$PYTHONPATH
+export PYTHONPATH=/share/code/Hybrid-VLA:$PYTHONPATH
 
 FUTURE_ACTION_STEPS=0
-SETTING=cogact_pretrain_freeze_vit_window${FUTURE_ACTION_STEPS}_diff+ar_boi_eoi_state_mlp_ptx
+SETTING=reconstruction_test
 FREEZE_VISON=true
 FREEZE_LLM=false
-LOAD_DIT=false
 ACTION_TOKENIZER_EXIST=true
 USE_DIFF=true
 AR_DIFF_LOSS=true
@@ -16,7 +16,7 @@ REPEATED_DIFFUSION_STEPS=4
 CLASS_DROPOUT_PROB=0.0
 
 DATA_MIX=rlbench
-TASK=10tasks_selected_keyframe_mulview
+TASK=12tasks_selected_keyframe_mulview
 NUM_GPUS=8
 NODES=1
 BATCH_SIZE=32
@@ -25,7 +25,7 @@ LEARNING_RATE=2e-5
 ACTION_DIM=7
 
 DATA_ROOT=/share/rlds_data
-EXP_ROOT=/share/code/4D_VLA/exp
+EXP_ROOT=/share/code/test_exp
 
 HF_TOKEN=
 
@@ -46,21 +46,16 @@ torchrun --standalone --nnodes ${NODES} --nproc-per-node ${NUM_GPUS} train.py \
   --run_root_dir ${EXP_ROOT} \
   --run_id exp_${TASK}_${SETTING} \
   --image_aug false \
-  --wandb_project cogact \
-  --wandb_entity 1162737898-the-chinese-university-of-hong-kong \
+  --wandb_project  ""\
+  --wandb_entity ""\
   --save_interval 100 \
   --action_dim ${ACTION_DIM} \
   --repeated_diffusion_steps ${REPEATED_DIFFUSION_STEPS} \
   --action_tokenizer_exist ${ACTION_TOKENIZER_EXIST} \
   --future_action_window_size ${FUTURE_ACTION_STEPS} \
-  --load_dit ${LOAD_DIT} \
   --class_dropout_prob ${CLASS_DROPOUT_PROB} \
   --use_diff ${USE_DIFF} \
   --ar_diff_loss ${AR_DIFF_LOSS} \
-  --action_model_type DiT-B \
   --is_resume False \
   --hf_token ${HF_TOKEN} \
-  --pretrained_checkpoint "/share/huggingface/hub/models--CogACT--CogACT-Base/snapshots/6550bf0992f162fc5d74f14ffee30771a9433363/checkpoints/CogACT-Base.pt"
-  # --pretrained_checkpoint "/share/huggingface/hub/models--openvla--openvla-7b/snapshots/31f090d05236101ebfc381b61c674dd4746d4ce0" \
-  # --pretrained_checkpoint "/share/code/CogACT/exp/exp_rtx_dataset_clean_freeze_none_window15/checkpoints/step-028459-epoch-01-loss=0.0434.pt"
-  # --pretrained_checkpoint '/share/code/4D_VLA/CogACT/exp/exp_rtx_dataset_clean_our_pretrain_clean_freeze_none_window0/checkpoints/step-056917-epoch-01-loss=0.1391.pt' \
+  --pretrained_checkpoint "/share/code/4D_VLA/exp/exp_rtx_dataset_4_our_pretrain_4_freeze_none_window0_ar+diff_boi_eoi_state_mlp_again_with_our_ep2/checkpoints/step-026810-epoch-01-loss=0.7753.pt" \

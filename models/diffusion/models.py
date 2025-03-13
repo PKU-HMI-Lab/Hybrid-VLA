@@ -917,10 +917,8 @@ class LabelEmbedder(nn.Module):
     def __init__(self, in_size, hidden_size, dropout_prob=-1, conditions_shape=(1, 1, 4096)):
         super().__init__()
         self.dropout_prob=dropout_prob
-        # self.linear = nn.Linear(in_size, hidden_size)
         if dropout_prob > 0:
-            self.uncondition = th.zeros(conditions_shape[1:])
-            # self.uncondition = nn.Parameter(torch.empty(conditions_shape[1:]))
+            self.uncondition = th.zeros(conditions_shape[1:]) 
 
     def token_drop(self, conditions, force_drop_ids=None):
         """
@@ -939,7 +937,6 @@ class LabelEmbedder(nn.Module):
         use_dropout = self.dropout_prob > 0
         if (train and use_dropout) or (force_drop_ids is not None):
             conditions = self.token_drop(conditions, force_drop_ids)
-        # conditions = self.linear(conditions)
         return conditions
     
 class ActionEmbedder(nn.Module):

@@ -21,7 +21,7 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset, DistributedSampler, IterableDataset
 
 from models.vlms import PrismaticVLM
-from training import Metrics, VLAMetrics
+from training.metrics import Metrics, VLAMetrics
 from models import HybridVLA
 from util import SplitModalitySampler, check_bloat16_supported, PaddedCollatorForActionPrediction, PaddedCollatorForLanguageModeling
 from overwatch import initialize_overwatch
@@ -282,11 +282,8 @@ class TrainingStrategy(ABC):
         ) as progress:
             self.vlm.train()
 
-            # Zero Gradients (just in case)
-            if self.vlm.use_ema is not None and self.vlm.use_ema == True:
-                self.vlm.ema_diffusion.eval()
             self.optimizer.zero_grad()
-
+            # print(self.mixed_precision_dtype, self.enable_mixed_precision_training)
             # [Contract] DataLoader wraps RLDS Loader (`.as_numpy_iterator() =>> implicit `.repeat()`)
             #   => This means looping over the DataLoader is basically "infinite" (so no outer loop over epochs).
             #      Slightly breaks default PyTorch semantics, which is why we adaptively compute `epoch` below.
@@ -311,13 +308,6 @@ class TrainingStrategy(ABC):
                             use_diff=True
                         )
                         if ar_diff_loss:
-                            # output: CausalLMOutputWithPast = self.vlm(
-                            #     input_ids=batch["input_ids"],
-                            #     attention_mask=batch["attention_mask"],
-                            #     pixel_values=batch["pixel_values"],
-                            #     labels=batch["labels"],
-                            #     use_diff=False
-                            # )
                             loss = loss + output.loss
                     else:
                         # [Contract] self.vlm.forward() must automatically compute `loss` and return!
@@ -336,10 +326,6 @@ class TrainingStrategy(ABC):
                 normalized_loss = loss / self.grad_accumulation_steps
                 normalized_loss.backward()
 
-                # for param_group in self.optimizer.param_groups:
-                #     for param in param_group['params']:
-                #         print(param.size())
-
                 # === Gradient Step ===
                 # Step =>> Only if Done w/ Gradient Accumulation
                 if (train_idx + 1) % self.grad_accumulation_steps == 0:
@@ -349,8 +335,6 @@ class TrainingStrategy(ABC):
                     # Optimizer & LR Scheduler Step
                     self.optimizer.step()
                     self.lr_scheduler.step()
-                    if self.vlm.use_ema is not None and self.vlm.use_ema == True:
-                        update_ema(self.vlm.ema_diffusion, self.vlm.action_model)
                     self.optimizer.zero_grad()
                     # Compute epoch value using number of completed gradient steps
                     div = (len(vla_dataset) // self.global_batch_size) if (len(vla_dataset) // self.global_batch_size)!=0 else 1
@@ -368,16 +352,6 @@ class TrainingStrategy(ABC):
                                 metrics.run_dir, metrics.global_step, epoch, loss.item(), only_trainable=not save_full_model
                             )
                             dist.barrier()
-
-                    # if (self.max_steps is not None and metrics.global_step >= self.max_steps) or (
-                    #     (metrics.global_step % (self.epochs * math.ceil((len(dataloader) / overwatch.world_size() / self.grad_accumulation_steps)))) == 0
-                    # ):
-                    #     # terminate=True
-
-                    #     self.save_checkpoint(
-                    #         metrics.run_dir, metrics.global_step, epoch, loss.item(), only_trainable=not save_full_model
-                    #     )
-                    #     dist.barrier()
 
                     if metrics.global_step>=(self.epochs * math.ceil((len(dataloader) / overwatch.world_size() / self.grad_accumulation_steps))):
                         return

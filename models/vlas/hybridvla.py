@@ -41,7 +41,6 @@ class HybridVLA(nn.Module):
         action_dim: int = 7,
         future_action_window_size: int = 15,
         past_action_window_size: int = 0,
-        use_ema: bool = False,
         norm_stats: Dict[str, Dict[str, Dict[str, Dict[str, List[float]]]]] = None,
         use_diff: bool = False,
         **kwargs,
@@ -58,8 +57,6 @@ class HybridVLA(nn.Module):
         self.all_module_keys=[]
         for module_keys in self.vlm.all_module_keys:
             self.all_module_keys.append("vlm." + module_keys)
-
-        self.use_ema = use_ema
         self.norm_stats = norm_stats
         self._trainable_module_keys = []
 
@@ -113,7 +110,7 @@ class HybridVLA(nn.Module):
 
         if self.use_diff:
             actions = actions.repeat(repeated_diffusion_steps, *([1] * (actions.ndimension() - 1)))
-            actions_history = actions[:,0:self.past_action_window_size,:]
+            # actions_history = actions[:,0:self.past_action_window_size,:]
             actions_future = actions[:, -(self.future_action_window_size+1):, :]
 
             input_ids = input_ids.repeat(repeated_diffusion_steps, *([1] * (input_ids.ndimension() - 1)))
@@ -196,12 +193,6 @@ class HybridVLA(nn.Module):
             ],
         )
 
-    def load_ema_to_weights(self):
-        """Load the EMA state dict to the weights."""
-        if self.use_ema:
-            self.action_model.load_state_dict(self.ema_diffusion.state_dict())
-            del self.ema_diffusion
-
     @classmethod
     def from_pretrained(
         cls,
@@ -215,8 +206,6 @@ class HybridVLA(nn.Module):
         action_dim: int = 7,
         future_action_window_size: int = 15,
         past_action_window_size: int = 0,
-        action_model_type: str = 'DiT-B',
-        use_ema: bool = False,
         norm_stats = None,
         class_dropout_prob: float = 0.0,
         need_to_sub: int = 0,
@@ -246,25 +235,20 @@ class HybridVLA(nn.Module):
 
         if "vision_backbone" in model_state_dict.keys():
             vlm.vision_backbone.load_state_dict(model_state_dict["vision_backbone"])
-            print("\n\nLoad vision_backbone!!!!\n\n")
         else:
-            raise ValueError("no vision backbone")
+            raise ValueError("no vision backbone found!")
 
         assert (
             "projector" in model_state_dict and "llm_backbone" in model_state_dict
         ), "PrismaticVLM `from_pretrained` expects checkpoint with keys for `projector` AND `llm_backbone`!"
         vlm.projector.load_state_dict(model_state_dict["projector"])
         vlm.llm_backbone.load_state_dict(model_state_dict["llm_backbone"])
-        print("\n\nLoad projector and llm_backbone!!!!\n\n")
 
         if "proprio_embedder" in model_state_dict.keys() and "x_embedder" in model_state_dict.keys() and "t_embedder" in model_state_dict.keys() and "final_layer" in model_state_dict.keys() and use_diff:
             vlm.x_embedder.load_state_dict(model_state_dict["x_embedder"])
             vlm.proprio_embedder.load_state_dict(model_state_dict["proprio_embedder"])
             vlm.t_embedder.load_state_dict(model_state_dict["t_embedder"])
             vlm.final_layer.load_state_dict(model_state_dict["final_layer"])
-            print("\n\nLoad x_embedder, proprio_embedder, t_embedder, final_layer!!!!\n\n")
-        else:
-            print("\n\nNo x_embedder, proprio_embedder, t_embedder, final_layer!!!!\n\n")
 
         # Freeze Weights
         if freeze_weights:
@@ -278,8 +262,6 @@ class HybridVLA(nn.Module):
                         action_dim = action_dim,
                         future_action_window_size = future_action_window_size,
                         past_action_window_size = past_action_window_size,
-                        action_model_type = action_model_type,
-                        use_ema = use_ema,
                         norm_stats = norm_stats,
                         use_diff=use_diff,
                         )
@@ -716,6 +698,7 @@ class HybridVLA(nn.Module):
         # Invoke super().generate --> taps into `GenerationMixin` which (redirects) to `forward()`
         autocast_dtype = self.vlm.llm_backbone.half_precision_dtype
 
+        torch.seed()
         noise = torch.randn(1, self.future_action_window_size+1, action_dim, device=self.vlm.device)
         timestep = torch.randint(0, self.diffusion.num_timesteps, (self.future_action_window_size+1,), device=self.vlm.device)
 

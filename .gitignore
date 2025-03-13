@@ -1,0 +1,5 @@
+__pycache__/
+*.egg-info/
+.hf_token
+runs/
+LIFT3D/

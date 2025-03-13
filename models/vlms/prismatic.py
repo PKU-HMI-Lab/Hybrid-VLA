@@ -399,11 +399,11 @@ class PrismaticVLM(VLM):
 
                 for key, value in pixel_values.items():
                     if key.startswith("front_"):
-                        front_pixel_values[key[len("front_"):]] = value.to(torch.bfloat16)  # 去掉 "front_" 前缀
+                        front_pixel_values[key[len("front_"):]] = value #.to(torch.bfloat16)  # 去掉 "front_" 前缀
                     elif key.startswith("wrist_left_"):
-                        wrist_left_pixel_values[key[len("wrist_left_"):]] = value.to(torch.bfloat16)  # 去掉 "wrist_left_" 前缀
+                        wrist_left_pixel_values[key[len("wrist_left_"):]] = value #.to(torch.bfloat16)  # 去掉 "wrist_left_" 前缀
                     elif key.startswith("wrist_"):
-                        wrist_pixel_values[key[len("wrist_"):]] = value.to(torch.bfloat16)  # 去掉 "wrist_" 前缀
+                        wrist_pixel_values[key[len("wrist_"):]] = value #.to(torch.bfloat16)  # 去掉 "wrist_" 前缀
 
                 front_patch_features = self.vision_backbone({k: front_pixel_values[k][multimodal_indices] for k in front_pixel_values})
                 front_patch_embeddings = self.projector(front_patch_features)
@@ -455,12 +455,15 @@ class PrismaticVLM(VLM):
         # if past_key_values!=None: print(len(past_key_values), len(past_key_values[0]), past_key_values[0][0].shape)
         # else: print("no past_key_values")
 
-        if x is not None:
-            x = x.to(torch.bfloat16)
-        if z is not None:
-            z = z.to(torch.bfloat16)
-        if t is not None:
-            t = t.to(torch.bfloat16)
+        # if x is not None:
+        #     x = x.to(torch.bfloat16)
+        # if z is not None:
+        #     z = z.to(torch.bfloat16)
+        # if t is not None:
+        #     t = t.to(torch.bfloat16)
+        # if proprio is not None:
+        #     proprio = proprio.to(torch.bfloat16)
+
         """Run a forward pass through the VLM, returning a CausalLMOutputWithPast instance (contains loss)."""
         # Handle Inference (leverage cache, short-circuit on just LLM forward)
         if use_diff is not None:
@@ -546,10 +549,8 @@ class PrismaticVLM(VLM):
         input_embeddings, projected_patch_embeddings = self.get_cognition(input_ids, pixel_values, multimodal_indices)
         z = torch.cat([input_embeddings[:, :1, :], projected_patch_embeddings, input_embeddings[:, 1:, :]], dim=1)
 
-        proprio = proprio.to(torch.bfloat16)
         proprio = self.proprio_embedder(proprio)
         if self.use_diff and not gen_discret_action:
-            
             z = self.z_embedder(z, self.training)
             x = self.x_embedder(x)
             t = self.t_embedder(t).unsqueeze(1) if t is not None else None
@@ -599,7 +600,7 @@ class PrismaticVLM(VLM):
                             attention_mask[indice, :1],
                             projected_patch_attention_mask[indice],
                             attention_mask[indice, 1:last_true_indice - projected_patch_embeddings.shape[1] + 1 - tag_2],
-                            torch.ones((t.shape[1]), dtype=torch.bool).to(projected_patch_attention_mask.device),
+                            torch.ones((proprio.shape[1]), dtype=torch.bool).to(projected_patch_attention_mask.device),
                             torch.ones((t.shape[1]), dtype=torch.bool).to(projected_patch_attention_mask.device),
                             torch.ones((x.shape[1]), dtype=torch.bool).to(projected_patch_attention_mask.device),
                             attention_mask[indice, last_true_indice - projected_patch_embeddings.shape[1] + 1 - tag_2:],
@@ -623,7 +624,7 @@ class PrismaticVLM(VLM):
                             labels[indice, :1],
                             projected_patch_labels[indice],
                             labels[indice, 1:last_true_indice - projected_patch_embeddings.shape[1] + 1 - tag_2],
-                            torch.full((t.shape[1],), IGNORE_INDEX).to(projected_patch_labels.device),
+                            torch.full((proprio.shape[1],), IGNORE_INDEX).to(projected_patch_labels.device),
                             torch.full((t.shape[1],), IGNORE_INDEX).to(projected_patch_labels.device),
                             torch.full((x.shape[1],), IGNORE_INDEX).to(projected_patch_labels.device),
                             labels[indice, last_true_indice - projected_patch_embeddings.shape[1] + 1 - tag_2:],
@@ -706,8 +707,6 @@ class PrismaticVLM(VLM):
         if self.use_diff and not gen_discret_action and not ar_infer:
             last_hidden = output.hidden_states[-1]
             last_hidden = self.final_layer(last_hidden)
-
-            ##  +1 for t; +2 for noise_action
             action_out = []
             for i, indices in enumerate(last_true_indices):
                 action_out.append(last_hidden[i, int(indices) + 3 - tag_2:int(indices) + self.future_action_window_size + 4 - tag_2, :].unsqueeze(0)) # [B, A, D]
