@@ -1,15 +1,31 @@
-# CogACT: A Foundational Vision-Language-Action Model for Synergizing Cognition and Action in Robotic Manipulation
-### 🚩[Project Page](https://cogact.github.io/) | 📑[Paper](https://arxiv.org/abs/2411.19650) | 🤗[Models](https://huggingface.co/CogACT)
+<div align="center">
+
+# HybridVLA: Collaborative Diffusion and Autoregression in a Unified Vision-Language-Action Model
+
+![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+![PyTorch](https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=white)
+  
+[🌐**Project Page**](https://hybrid-vla.github.io/) | [✍️**Paper(Arxiv)**](https://hybrid-vla.github.io/) | [🎥**Demo**](https://hybrid-vla.github.io/)
 
 
-This is the code for CogACT: A Foundational Vision-Language-Action Model for Synergizing Cognition and Action in Robotic Manipulation.
+Jiaming Liu, Hao Chen, Pengju An, Zhuoyang Liu, Renrui Zhang, Chenyang Gu, Xiaoqi Li, Ziyu Guo, Sixiang Chen, 
+Mengzhen Liu, Chengkai Hou, Mengdi Zhao, KC alex Zhou, Pheng-Ann Heng, Shanghang Zhang
 
-## Contents
- * [**Installation**](#installation)
- * [**Getting Started**](#getting-started)
- * [**Fully Fine-Tuning**](#fully-fine-tuning)
- * [**Training CogACT from Scratch**](#training-cogact-from-scratch)
- * [**Evaluation in SIMPLER**](#evaluation-in-simpler)
+</div>
+
+
+![](assets/teaser.png)
+**🤖 HybridVLA innovatively integrates diffusion and autoregressive action prediction within a single LLM, fully leveraging the continuity and probabilistic nature of diffusion alongside the reasoning capabilities of autoregressive modeling.** It undergoes pretraining on large, diverse, cross-embodied real-world robotic datasets and is further fine-tuned on both simulation and self-collected real-world data. HybridVLA achieves remarkable performance across various tasks, demonstrating strong generalization to unseen manipulated objects, backgrounds, spatial positions, and lighting conditions.
+
+## ✨ News ✨
+
+- [2025/03/13] Lift3D is now live on arXiv! The pre-trained checkpoint on a large-scale robotic dataset has also been released.🚀 
+
+## ✨ Coming soon ✨
+
+- The training config and code will be officially released as soon as possible!
+
+
 
 ## Installation
 The code is built using Python 3.10, and can be run under any environment with Python 3.8 and above. We require PyTorch >= 2.2.0 and CUDA >= 12.0 (It may run with lower versions, but we have not tested it).
