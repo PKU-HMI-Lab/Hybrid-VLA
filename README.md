@@ -104,7 +104,6 @@ actions_diff, actions_ar, _, _ = model.predict_action_diff_ar(
           num_ddim_steps = 10,               # number of steps for DDIM sampling
         )
 
-# results in a 7-DoF diff actions of 1 steps with shape (1, 7), and a 7-DoF ar action with shape (7,)
 ```
 
 ## 🔍Test in RLBench
