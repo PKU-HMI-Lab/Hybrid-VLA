@@ -269,336 +269,10 @@ class HybridVLA(nn.Module):
         return hybridvla        
 
     @torch.inference_mode()
-    def predict_action_diff(
-        self, image: Image, 
-        instruction: str, 
-        unnorm_key: Optional[str] = None, 
-        cfg_scale: float = 1.5, 
-        use_ddim: bool = False,
-        num_ddim_steps: int = 5,
-        action_dim: int = 7,
-        **kwargs: str
-    ) -> np.ndarray:
-        """
-        Core function for VLA inference; maps input image and task instruction to continuous action.
-
-        @param image: PIL Image as [height, width, 3]
-        @param instruction: Task instruction string
-        @param unnorm_key: Optional dataset name for retrieving un-normalizing statistics; if None, checks that model
-                           was trained only on a single dataset, and retrieves those statistics.
-        @param cfg_scale: Scaling factor for classifier-free guidance (CFG); if == 1.0, CFG is disabled.
-        @param use_ddim: Use DDIM sampling instead of DDPM sampling.
-        @param num_ddim_steps: Number of DDIM steps to use for sampling.
-
-        @return Unnormalized (continuous) action vector --> end-effector deltas.
-        """
-        image_transform, tokenizer = self.vlm.vision_backbone.image_transform, self.vlm.llm_backbone.tokenizer
-
-        # Build VLA Prompt
-        prompt_builder = self.vlm.get_prompt_builder()
-        prompt_builder.add_turn(role="human", message=f"What action should the robot take to {instruction.lower()}?")
-        prompt_text = prompt_builder.get_prompt()
-        # Prepare Inputs
-        input_ids = tokenizer(prompt_text, truncation=True, return_tensors="pt").input_ids.to(self.vlm.device)
-
-        if isinstance(tokenizer, LlamaTokenizerFast):
-            # Note: We need to add this special empty token ('') after the colon (':') token in "ASSISTANT:"
-            #       insert it to match the inputs seen at training time. The empty token is at index 29871.
-            #       We also need to add the special cognition token at index 2 (i.e. the EOS token).
-            input_ids = torch.cat(
-                (input_ids, torch.unsqueeze(torch.Tensor([29871]).long(), dim=0).to(self.vlm.device)), dim=1
-            )
-        else:
-            raise ValueError(f"Unsupported `tokenizer` type = {type(tokenizer)}")
-
-        # Preprocess Image
-        pixel_values = image_transform(image)
-        if isinstance(pixel_values, torch.Tensor):
-            pixel_values = pixel_values[None, ...].to(self.vlm.device)
-        elif isinstance(pixel_values, dict):
-            pixel_values = {k: v[None, ...].to(self.vlm.device) for k, v in pixel_values.items()}
-        else:
-            raise ValueError(f"Unsupported `pixel_values` type = {type(pixel_values)}")
-        
-        noise = torch.randn(1, self.future_action_window_size+1, action_dim, device=self.vlm.device)
-        using_cfg = cfg_scale > 1.0
-
-        if using_cfg:
-            noise = torch.cat([noise, noise], 0)
-            uncondition = self.vlm.z_embedder.uncondition
-            uncondition = uncondition.unsqueeze(0)  #[1, D]
-            uncondition = uncondition.expand(input_ids.shape[0], 1, -1) #[B, 1, D]
-            cfg_scale = cfg_scale
-            sample_fn = self.vlm.forward_with_cfg
-            model_kwargs = dict(z=uncondition, cfg_scale=cfg_scale, input_ids=input_ids, pixel_values=pixel_values)
-        else:
-            model_kwargs = dict(input_ids=input_ids, pixel_values=pixel_values)
-            sample_fn = self.vlm.forward
-
-        # # DDIM Sampling
-        if use_ddim and num_ddim_steps is not None:
-            if self.ddim_diffusion is None:
-                self.create_ddim(ddim_step=num_ddim_steps)
-            samples = self.ddim_diffusion.ddim_sample_loop(sample_fn, 
-                                                            noise.shape, 
-                                                            noise, 
-                                                            clip_denoised=False,
-                                                            model_kwargs=model_kwargs,
-                                                            progress=False,
-                                                            device=self.vlm.device,
-                                                            eta=0.0
-                                                            )
-        else:
-            # DDPM Sampling
-            samples = self.diffusion.p_sample_loop(sample_fn, 
-                                                    noise.shape, 
-                                                    noise, 
-                                                    clip_denoised=False,
-                                                    model_kwargs=model_kwargs,
-                                                    progress=False,
-                                                    device=self.vlm.device
-                                                    )
-        if using_cfg:
-            samples, _ = samples.chunk(2, dim=0)  # Remove null class samples
-        normalized_actions = samples[0].cpu().numpy()
-
-        # Un-normalize Actions        
-        action_norm_stats = self.get_action_stats(unnorm_key)
-        mask = action_norm_stats.get("mask", np.ones_like(action_norm_stats["q01"], dtype=bool))
-        action_high, action_low = np.array(action_norm_stats["q99"]), np.array(action_norm_stats["q01"])
-        normalized_actions = np.clip(normalized_actions, -1, 1)
-        normalized_actions[:, 6] = np.where(normalized_actions[:, 6] < 0.5, 0, 1) 
-        actions = np.where(
-            mask,
-            0.5 * (normalized_actions + 1) * (action_high - action_low) + action_low,
-            normalized_actions,
-        )
-        return actions
-
-    @torch.inference_mode()
-    def predict_action_ar(
-        self, image: Image, 
-        instruction: str, 
-        unnorm_key: Optional[str] = None, 
-        cfg_scale: float = 1.5, 
-        use_ddim: bool = False,
-        num_ddim_steps: int = 5,
-        action_dim: int = 7,
-        **kwargs: str
-    ) -> np.ndarray:
-        """
-        Core function for VLA inference; maps input image and task instruction to continuous action.
-
-        @param image: PIL Image as [height, width, 3]
-        @param instruction: Task instruction string
-        @param unnorm_key: Optional dataset name for retrieving un-normalizing statistics; if None, checks that model
-                           was trained only on a single dataset, and retrieves those statistics.
-        @param cfg_scale: Scaling factor for classifier-free guidance (CFG); if == 1.0, CFG is disabled.
-        @param use_ddim: Use DDIM sampling instead of DDPM sampling.
-        @param num_ddim_steps: Number of DDIM steps to use for sampling.
-
-        @return Unnormalized (continuous) action vector --> end-effector deltas.
-        """
-        image_transform, tokenizer = self.vlm.vision_backbone.image_transform, self.vlm.llm_backbone.tokenizer
-
-        # Build VLA Prompt
-        prompt_builder = self.vlm.get_prompt_builder()
-        prompt_builder.add_turn(role="human", message=f"What action should the robot take to {instruction.lower()}?")
-        prompt_text = prompt_builder.get_prompt()
-
-        # Prepare Inputs
-        input_ids = tokenizer(prompt_text, truncation=True, return_tensors="pt").input_ids.to(self.vlm.device)
-        if isinstance(tokenizer, LlamaTokenizerFast):
-            # If the special empty token ('') does not already appear after the colon (':') token in the prompt
-            # (after "OUT:" or "ASSISTANT:"), insert it to match the inputs seen at training time
-            if not torch.all(input_ids[:, -1] == 29871):
-                input_ids = torch.cat(
-                    (input_ids, torch.unsqueeze(torch.Tensor([29871]).long(), dim=0).to(self.vlm.device)), dim=1
-                )
-        else:
-            raise ValueError(f"Unsupported `tokenizer` type = {type(tokenizer)}")
-
-        # Preprocess Image
-        pixel_values = image_transform(image)
-        if isinstance(pixel_values, torch.Tensor):
-            pixel_values = pixel_values[None, ...].to(self.vlm.device)
-        elif isinstance(pixel_values, dict):
-            pixel_values = {k: v[None, ...].to(self.vlm.device) for k, v in pixel_values.items()}
-        else:
-            raise ValueError(f"Unsupported `pixel_values` type = {type(pixel_values)}")
-
-        # Invoke super().generate --> taps into `GenerationMixin` which (redirects) to `forward()`
-        autocast_dtype = self.vlm.llm_backbone.half_precision_dtype
-
-        with torch.autocast("cuda", dtype=autocast_dtype, enabled=self.vlm.enable_mixed_precision_training):
-            # fmt: off
-            generated_ids = super(PrismaticVLM, self.vlm).generate(
-                input_ids=input_ids,                            # Shape: [1, seq]
-                pixel_values=pixel_values,                      # Shape: [1, 3, res, res] or Dict[str, ...]
-                max_new_tokens=self.get_action_dim(unnorm_key),
-                **kwargs
-            )
-            # fmt: on
-        # Extract predicted action tokens and translate into (normalized) continuous actions
-        predicted_action_token_ids = generated_ids[0, -self.get_action_dim(unnorm_key) :]
-        normalized_actions = self.action_tokenizer.decode_token_ids_to_actions(predicted_action_token_ids.cpu().numpy())
-
-        # Un-normalize Actions
-        action_norm_stats = self.get_action_stats(unnorm_key)
-        mask = action_norm_stats.get("mask", np.ones_like(action_norm_stats["q01"], dtype=bool))
-        action_high, action_low = np.array(action_norm_stats["q99"]), np.array(action_norm_stats["q01"])
-        normalized_actions = np.clip(normalized_actions, -1, 1)
-        normalized_actions[6] = np.where(normalized_actions[6] < 0.5, 0, 1) 
-
-        actions = np.where(
-            mask,
-            0.5 * (normalized_actions + 1) * (action_high - action_low) + action_low,
-            normalized_actions,
-        )
-        return actions
-
-    @torch.inference_mode()
-    def predict_action_ar_diff(
-        self, image: Image, 
-        instruction: str, 
-        unnorm_key: Optional[str] = None, 
-        cfg_scale: float = 1.5, 
-        use_ddim: bool = False,
-        num_ddim_steps: int = 5,
-        action_dim: int = 7,
-        **kwargs: str
-    ) -> np.ndarray:
-        """
-        Core function for VLA inference; maps input image and task instruction to continuous action.
-
-        @param image: PIL Image as [height, width, 3]
-        @param instruction: Task instruction string
-        @param unnorm_key: Optional dataset name for retrieving un-normalizing statistics; if None, checks that model
-                           was trained only on a single dataset, and retrieves those statistics.
-        @param cfg_scale: Scaling factor for classifier-free guidance (CFG); if == 1.0, CFG is disabled.
-        @param use_ddim: Use DDIM sampling instead of DDPM sampling.
-        @param num_ddim_steps: Number of DDIM steps to use for sampling.
-
-        @return Unnormalized (continuous) action vector --> end-effector deltas.
-        """
-        image_transform, tokenizer = self.vlm.vision_backbone.image_transform, self.vlm.llm_backbone.tokenizer
-
-        # Build VLA Prompt
-        prompt_builder = self.vlm.get_prompt_builder()
-        prompt_builder.add_turn(role="human", message=f"What action should the robot take to {instruction.lower()}?")
-        prompt_text = prompt_builder.get_prompt()
-
-        # Prepare Inputs
-        input_ids = tokenizer(prompt_text, truncation=True, return_tensors="pt").input_ids.to(self.vlm.device)
-        if isinstance(tokenizer, LlamaTokenizerFast):
-            # If the special empty token ('') does not already appear after the colon (':') token in the prompt
-            # (after "OUT:" or "ASSISTANT:"), insert it to match the inputs seen at training time
-            if not torch.all(input_ids[:, -1] == 29871):
-                input_ids = torch.cat(
-                    (input_ids, torch.unsqueeze(torch.Tensor([29871]).long(), dim=0).to(self.vlm.device)), dim=1
-                )
-        else:
-            raise ValueError(f"Unsupported `tokenizer` type = {type(tokenizer)}")
-
-        # Preprocess Image
-        pixel_values = image_transform(image)
-        if isinstance(pixel_values, torch.Tensor):
-            pixel_values = pixel_values[None, ...].to(self.vlm.device)
-        elif isinstance(pixel_values, dict):
-            pixel_values = {k: v[None, ...].to(self.vlm.device) for k, v in pixel_values.items()}
-        else:
-            raise ValueError(f"Unsupported `pixel_values` type = {type(pixel_values)}")
-
-        # Invoke super().generate --> taps into `GenerationMixin` which (redirects) to `forward()`
-        autocast_dtype = self.vlm.llm_backbone.half_precision_dtype
-
-        with torch.autocast("cuda", dtype=autocast_dtype, enabled=self.vlm.enable_mixed_precision_training):
-            # fmt: off
-            generated_ids = super(PrismaticVLM, self.vlm).generate(
-                input_ids=input_ids,                            # Shape: [1, seq]
-                pixel_values=pixel_values,                      # Shape: [1, 3, res, res] or Dict[str, ...]
-                max_new_tokens=self.get_action_dim(unnorm_key)+1,
-                gen_discret_action=True,
-                **kwargs
-            )
-
-        predicted_action_token_ids = generated_ids[0, -(self.get_action_dim(unnorm_key)+1):-1]
-        normalized_actions = self.action_tokenizer.decode_token_ids_to_actions(predicted_action_token_ids.cpu().numpy())
-
-        # Un-normalize Actions
-        action_norm_stats = self.get_action_stats(unnorm_key)
-        mask = action_norm_stats.get("mask", np.ones_like(action_norm_stats["q01"], dtype=bool))
-        action_high, action_low = np.array(action_norm_stats["q99"]), np.array(action_norm_stats["q01"])
-        normalized_actions = np.clip(normalized_actions, -1, 1)
-        normalized_actions[6] = np.where(normalized_actions[6] < 0.5, 0, 1) 
-
-        actions_ar = np.where(
-            mask,
-            0.5 * (normalized_actions + 1) * (action_high - action_low) + action_low,
-            normalized_actions,
-        )
-
-        noise = torch.randn(1, self.future_action_window_size+1, action_dim, device=self.vlm.device)
-        using_cfg = cfg_scale > 1.0
-
-        if using_cfg:
-            noise = torch.cat([noise, noise], 0)
-            uncondition = self.vlm.z_embedder.uncondition
-            uncondition = uncondition.unsqueeze(0)  #[1, D]
-            uncondition = uncondition.expand(input_ids.shape[0], 1, -1) #[B, 1, D]
-            cfg_scale = cfg_scale
-            sample_fn = self.vlm.forward_with_cfg
-            model_kwargs = dict(z=uncondition, cfg_scale=cfg_scale, input_ids=input_ids, pixel_values=pixel_values)
-        else:
-            model_kwargs = dict(input_ids=generated_ids, pixel_values=pixel_values)
-            sample_fn = self.vlm.forward
-
-        # # DDIM Sampling
-        if use_ddim and num_ddim_steps is not None:
-            if self.ddim_diffusion is None:
-                self.create_ddim(ddim_step=num_ddim_steps)
-            samples = self.ddim_diffusion.ddim_sample_loop(sample_fn, 
-                                                            noise.shape, 
-                                                            noise, 
-                                                            clip_denoised=False,
-                                                            model_kwargs=model_kwargs,
-                                                            progress=False,
-                                                            device=self.vlm.device,
-                                                            eta=0.0
-                                                            )
-        else:
-            # DDPM Sampling
-            samples = self.diffusion.p_sample_loop(sample_fn, 
-                                                    noise.shape, 
-                                                    noise, 
-                                                    clip_denoised=False,
-                                                    model_kwargs=model_kwargs,
-                                                    progress=False,
-                                                    device=self.vlm.device
-                                                    )
-        if using_cfg:
-            samples, _ = samples.chunk(2, dim=0)  # Remove null class samples
-        normalized_actions = samples[0].cpu().numpy()
-
-        # Un-normalize Actions        
-        action_norm_stats = self.get_action_stats(unnorm_key)
-        mask = action_norm_stats.get("mask", np.ones_like(action_norm_stats["q01"], dtype=bool))
-        action_high, action_low = np.array(action_norm_stats["q99"]), np.array(action_norm_stats["q01"])
-        normalized_actions = np.clip(normalized_actions, -1, 1)
-        normalized_actions[:, 6] = np.where(normalized_actions[:, 6] < 0.5, 0, 1) 
-        actions_diff = np.where(
-            mask,
-            0.5 * (normalized_actions + 1) * (action_high - action_low) + action_low,
-            normalized_actions,
-        )
-        
-        return actions_ar, actions_diff
-
-    @torch.inference_mode()
-    def predict_action_diff_ar(
+    def predict_action(
         self, 
-        front_image: Optional[Image] = None,  # 默认值为None
-        wrist_image: Optional[Image] = None,  # 默认值为None
+        front_image: Optional[Image] = None,  # default is None
+        wrist_image: Optional[Image] = None,  
         wrist_left_image :Optional[Image] = None,
         instruction: str = "", 
         unnorm_key: Optional[str] = None, 
@@ -608,8 +282,9 @@ class HybridVLA(nn.Module):
         action_dim: int = 7,
         cur_robot_state: Optional[str] = None,
         multi_view: bool = True,
+        predict_mode: str = "diff+ar",
         **kwargs: str
-    ) -> np.ndarray:
+    ):
         """
         Core function for VLA inference; maps input image and task instruction to continuous action.
 
@@ -624,8 +299,60 @@ class HybridVLA(nn.Module):
         @return Unnormalized (continuous) action vector --> end-effector deltas.
         """
         image_transform, tokenizer = self.vlm.vision_backbone.image_transform, self.vlm.llm_backbone.tokenizer
-
+        device = self.vlm.device
+        autocast_dtype = self.vlm.llm_backbone.half_precision_dtype
+        
         message = f"What action should the robot take to {instruction.lower()}?"
+        prompt_builder = self.vlm.get_prompt_builder()
+        prompt_builder.add_turn(role="human", message=message)
+        prompt_text = prompt_builder.get_prompt()
+        
+        input_ids = tokenizer(prompt_text, truncation=True, return_tensors="pt").input_ids.to(device)
+        
+        if not isinstance(tokenizer, LlamaTokenizerFast):
+            raise ValueError(f"Unsupported `tokenizer` type = {type(tokenizer)}")
+        
+        def append_tokens(ids_to_append):
+            token_tensor = torch.tensor([ids_to_append], dtype=torch.long, device=device)
+            return torch.cat((input_ids, token_tensor), dim=1)
+        
+        has_empty_token = lambda: torch.all(input_ids[:, -1] == 29871)
+        
+        if predict_mode == 'diff':
+            input_ids = append_tokens([29871])
+        elif predict_mode in ['ar', 'ar+diff']:
+            if not has_empty_token():
+                input_ids = append_tokens([29871])
+        elif predict_mode == 'diff+ar':
+            if self.vlm.model_id == 'prism-dinosiglip-224px+7b':
+                if not has_empty_token():
+                    input_ids = append_tokens([29871, 32001, 32002, 29871])
+            elif self.vlm.model_id == 'phi-2+3b':
+                input_ids = append_tokens([220, 50296, 50297])
+        else:
+            raise ValueError(f"Unsupported predict_mode = {predict_mode}")
+        
+        pixel_values = {}
+        
+        def process_image(image, prefix):
+            if not image:
+                return
+            
+            pv = image_transform(image)
+            if isinstance(pv, torch.Tensor):
+                pv = pv[None, ...].to(device)
+            elif isinstance(pv, dict):
+                pv = {k: v[None, ...].to(device) for k, v in pv.items()}
+            else:
+                raise ValueError(f"Unsupported `{prefix}_pixel_values` type = {type(pv)}")
+            
+            for key, value in pv.items():
+                pixel_values[f"{prefix}_{key}"] = value
+        
+        process_image(front_image, "front")
+        process_image(wrist_image, "wrist")
+        process_image(wrist_left_image, "wrist_left")
+        
         if cur_robot_state is not None:
             proprio_norm_stats = self.get_proprio_stats(unnorm_key)
             mask = proprio_norm_stats.get("mask", np.ones_like(proprio_norm_stats["q01"], dtype=bool))
@@ -636,181 +363,149 @@ class HybridVLA(nn.Module):
                 cur_robot_state,
             )
             cur_robot_state = np.clip(cur_robot_state, -1, 1)
-            cur_robot_state = torch.tensor(cur_robot_state, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(self.vlm.device)
-            # cur_robot_state = self.action_tokenizer(cur_robot_state)
-            # message = f"The current robot state is {cur_robot_state}. " + message
+            cur_robot_state = torch.tensor(cur_robot_state, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(device)
         
-        # Build VLA Prompt
-        prompt_builder = self.vlm.get_prompt_builder()
-        prompt_builder.add_turn(role="human", message=message)
-        prompt_text = prompt_builder.get_prompt()
-
-        # Prepare Inputs
-        input_ids = tokenizer(prompt_text, truncation=True, return_tensors="pt").input_ids.to(self.vlm.device)
-
-        if self.vlm.model_id == 'prism-dinosiglip-224px+7b':
-            if isinstance(tokenizer, LlamaTokenizerFast):
-                # If the special empty token ('') does not already appear after the colon (':') token in the prompt
-                # (after "OUT:" or "ASSISTANT:"), insert it to match the inputs seen at training time
-                if not torch.all(input_ids[:, -1] == 29871):
-                    input_ids = torch.cat(
-                        (input_ids, torch.unsqueeze(torch.Tensor([29871, 32001, 32002, 29871]).long(), dim=0).to(self.vlm.device)), dim=1
-                    )
-            else:
-                raise ValueError(f"Unsupported `tokenizer` type = {type(tokenizer)}")
-        elif self.vlm.model_id == 'phi-2+3b':
-            input_ids = torch.cat(
-                (input_ids, torch.unsqueeze(torch.Tensor([220, 50296, 50297]).long(), dim=0).to(self.vlm.device)), dim=1
-            )
-
-        pixel_values = {}
-        if front_image:
-            front_pixel_values = image_transform(front_image)
-            if isinstance(front_pixel_values, torch.Tensor):
-                front_pixel_values = front_pixel_values[None, ...].to(self.vlm.device)
-            elif isinstance(front_pixel_values, dict):
-                front_pixel_values = {k: v[None, ...].to(self.vlm.device) for k, v in front_pixel_values.items()}
-            else:
-                raise ValueError(f"Unsupported `front_pixel_values` type = {type(front_pixel_values)}")
-            for key, value in front_pixel_values.items():
-                pixel_values[f"front_{key}"] = value
-        if wrist_image:
-            wrist_pixel_values = image_transform(wrist_image)
-            if isinstance(wrist_pixel_values, torch.Tensor):
-                wrist_pixel_values = wrist_pixel_values[None, ...].to(self.vlm.device)
-            elif isinstance(wrist_pixel_values, dict):
-                wrist_pixel_values = {k: v[None, ...].to(self.vlm.device) for k, v in wrist_pixel_values.items()}
-            else:
-                raise ValueError(f"Unsupported `wrist_pixel_values` type = {type(wrist_pixel_values)}")
-            for key, value in wrist_pixel_values.items():
-                pixel_values[f"wrist_{key}"] = value
-        if wrist_left_image:
-            wrist_left_pixel_values = image_transform(wrist_left_image)
-            if isinstance(wrist_left_pixel_values, torch.Tensor):
-                wrist_left_pixel_values = wrist_left_pixel_values[None, ...].to(self.vlm.device)
-            elif isinstance(wrist_left_pixel_values, dict):
-                wrist_left_pixel_values = {k: v[None, ...].to(self.vlm.device) for k, v in wrist_left_pixel_values.items()}
-            else:
-                raise ValueError(f"Unsupported `wrist_left_pixel_values` type = {type(wrist_left_pixel_values)}")
-            for key, value in wrist_left_pixel_values.items():
-                pixel_values[f"wrist_left_{key}"] = value
-
-        # Invoke super().generate --> taps into `GenerationMixin` which (redirects) to `forward()`
-        autocast_dtype = self.vlm.llm_backbone.half_precision_dtype
-
-        noise = torch.randn(1, self.future_action_window_size+1, action_dim, device=self.vlm.device)
-        timestep = torch.randint(0, self.diffusion.num_timesteps, (self.future_action_window_size+1,), device=self.vlm.device)
-
-        t1 = time.time()
-
-        with torch.autocast("cuda", dtype=autocast_dtype, enabled=self.vlm.enable_mixed_precision_training):
-            # fmt: off
-            outputs = super(PrismaticVLM, self.vlm).generate(
-                x=noise,
-                proprio=cur_robot_state,
-                t=timestep,
-                input_ids=input_ids,                            # Shape: [1, seq]
-                pixel_values=pixel_values,                      # Shape: [1, 3, res, res] or Dict[str, ...]
-                max_new_tokens=self.get_action_dim(unnorm_key),
-                gen_discret_action=False,
-                ar_infer=True,
-                output_scores=True, # 输出置信度
-                return_dict_in_generate=True,
-                **kwargs
-            )
+        def unnormalize_actions(normalized_actions):
+            action_norm_stats = self.get_action_stats(unnorm_key)
+            mask = action_norm_stats.get("mask", np.ones_like(action_norm_stats["q01"], dtype=bool))
+            action_high, action_low = np.array(action_norm_stats["q99"]), np.array(action_norm_stats["q01"])
             
-        logits = outputs.scores
-        probs = [torch.softmax(log, dim=-1) for log in logits]
-        last_7_tensors = probs[-7:]
-        max_probs = [tensor.max().item() for tensor in last_7_tensors]
-        generated_ids = outputs.sequences
+            normalized_actions = np.clip(normalized_actions, -1, 1)
+            
+            if isinstance(normalized_actions, np.ndarray):
+                if normalized_actions.ndim == 1 and len(normalized_actions) == 7:
+                    normalized_actions[6] = np.where(normalized_actions[6] < 0.5, 0, 1)
+                elif normalized_actions.ndim == 1 and len(normalized_actions) == 14:
+                    normalized_actions[6] = np.where(normalized_actions[6] < 0.5, 0, 1)
+                    normalized_actions[13] = np.where(normalized_actions[13] < 0.5, 0, 1)
+                elif normalized_actions.ndim > 1:
+                    if normalized_actions.shape[1] == 7:
+                        normalized_actions[:, 6] = np.where(normalized_actions[:, 6] < 0.5, 0, 1)
+                    elif normalized_actions.shape[1] == 14:
+                        normalized_actions[:, 6] = np.where(normalized_actions[:, 6] < 0.5, 0, 1)
+                        normalized_actions[:, 13] = np.where(normalized_actions[:, 13] < 0.5, 0, 1)
+            
+            actions = np.where(
+                mask,
+                0.5 * (normalized_actions + 1) * (action_high - action_low) + action_low,
+                normalized_actions,
+            )
+            return actions
         
-        predicted_action_token_ids = generated_ids[0, -self.get_action_dim(unnorm_key) :]
-        normalized_actions = self.action_tokenizer.decode_token_ids_to_actions(predicted_action_token_ids.cpu().numpy())
-
-        # Un-normalize Actions
-        action_norm_stats = self.get_action_stats(unnorm_key)
-        mask = action_norm_stats.get("mask", np.ones_like(action_norm_stats["q01"], dtype=bool))
-        action_high, action_low = np.array(action_norm_stats["q99"]), np.array(action_norm_stats["q01"])
-        normalized_actions = np.clip(normalized_actions, -1, 1)
-        if len(normalized_actions)==7:
-            normalized_actions[6] = np.where(normalized_actions[6] < 0.5, 0, 1)
-        elif len(normalized_actions)==14:
-            normalized_actions[6] = np.where(normalized_actions[6] < 0.5, 0, 1) 
-            normalized_actions[13] = np.where(normalized_actions[13] < 0.5, 0, 1) 
-        actions_ar = np.where(
-            mask,
-            0.5 * (normalized_actions + 1) * (action_high - action_low) + action_low,
-            normalized_actions,
-        )
-
-        t2 = time.time()
+        def prepare_diffusion(input_ids_diff=None):
+            noise = torch.randn(1, self.future_action_window_size+1, action_dim, device=device)
+            timestep = torch.randint(0, self.diffusion.num_timesteps, (self.future_action_window_size+1,), device=device)
+            using_cfg = cfg_scale > 1.0
+            
+            if input_ids_diff is None:
+                input_ids_diff = input_ids
+                if self.vlm.model_id == 'prism-dinosiglip-224px+7b':
+                    input_ids_diff = input_ids_diff[:, :-2]
+                elif self.vlm.model_id == 'phi-2+3b':
+                    input_ids_diff = input_ids_diff[:, :-1]
+            
+            if using_cfg:
+                noise = torch.cat([noise, noise], 0)
+                uncondition = self.vlm.z_embedder.uncondition.unsqueeze(0).expand(input_ids_diff.shape[0], 1, -1)
+                sample_fn = self.vlm.forward_with_cfg
+                model_kwargs = {
+                    'z': uncondition, 
+                    'cfg_scale': cfg_scale, 
+                    'input_ids': input_ids_diff, 
+                    'pixel_values': pixel_values
+                }
+                if cur_robot_state is not None:
+                    model_kwargs['proprio'] = cur_robot_state
+            else:
+                model_kwargs = {'input_ids': input_ids_diff, 'pixel_values': pixel_values}
+                if cur_robot_state is not None:
+                    model_kwargs['proprio'] = cur_robot_state
+                sample_fn = self.vlm.forward
+            
+            return noise, timestep, sample_fn, model_kwargs, using_cfg
         
-        if self.vlm.model_id == 'prism-dinosiglip-224px+7b':
-            input_ids = input_ids[:, :-2]
-        elif self.vlm.model_id == 'phi-2+3b':
-            input_ids = input_ids[:, :-1]
-        using_cfg = cfg_scale > 1.0
-        if using_cfg:
-            noise = torch.cat([noise, noise], 0)
-            uncondition = self.vlm.z_embedder.uncondition
-            uncondition = uncondition.unsqueeze(0)  #[1, D]
-            uncondition = uncondition.expand(input_ids.shape[0], 1, -1) #[B, 1, D]
-            cfg_scale = cfg_scale
-            sample_fn = self.vlm.forward_with_cfg
-            model_kwargs = dict(z=uncondition, cfg_scale=cfg_scale, proprio=cur_robot_state, input_ids=input_ids, pixel_values=pixel_values)
-        else:
-            model_kwargs = dict(input_ids=input_ids, proprio=cur_robot_state, pixel_values=pixel_values)
-            sample_fn = self.vlm.forward
-
-        t3 = time.time()
-        # # DDIM Sampling
-        if use_ddim and num_ddim_steps is not None:
-            if self.ddim_diffusion is None:
-                self.create_ddim(ddim_step=num_ddim_steps)
-            samples = self.ddim_diffusion.ddim_sample_loop(sample_fn, 
-                                                            noise.shape, 
-                                                            noise, 
-                                                            clip_denoised=False,
-                                                            model_kwargs=model_kwargs,
-                                                            progress=False,
-                                                            device=self.vlm.device,
-                                                            eta=0.0
-                                                            )
-        else:
-            # DDPM Sampling
-            samples = self.diffusion.p_sample_loop(sample_fn, 
-                                                    noise.shape, 
-                                                    noise, 
-                                                    clip_denoised=False,
-                                                    model_kwargs=model_kwargs,
-                                                    progress=False,
-                                                    device=self.vlm.device
-                                                    )
-        if using_cfg:
-            samples, _ = samples.chunk(2, dim=0)  # Remove null class samples
-        normalized_actions = samples[0].cpu().numpy()
-
-        # Un-normalize Actions        
-        action_norm_stats = self.get_action_stats(unnorm_key)
-        mask = action_norm_stats.get("mask", np.ones_like(action_norm_stats["q01"], dtype=bool))
-        action_high, action_low = np.array(action_norm_stats["q99"]), np.array(action_norm_stats["q01"])
-        normalized_actions = np.clip(normalized_actions, -1, 1)
-        if len(normalized_actions[0])==7:
-            normalized_actions[:, 6] = np.where(normalized_actions[:, 6] < 0.5, 0, 1)
-        elif len(normalized_actions[0])==14:
-            normalized_actions[:, 6] = np.where(normalized_actions[:, 6] < 0.5, 0, 1) 
-            normalized_actions[:, 13] = np.where(normalized_actions[:, 13] < 0.5, 0, 1) 
-        actions_diff = np.where(
-            mask,
-            0.5 * (normalized_actions + 1) * (action_high - action_low) + action_low,
-            normalized_actions,
-        )
-
-        t4 = time.time()
-
+        def sample_diffusion(noise, sample_fn, model_kwargs, using_cfg):
+            if use_ddim and num_ddim_steps is not None:
+                if self.ddim_diffusion is None:
+                    self.create_ddim(ddim_step=num_ddim_steps)
+                samples = self.ddim_diffusion.ddim_sample_loop(
+                    sample_fn, 
+                    noise.shape, 
+                    noise, 
+                    clip_denoised=False,
+                    model_kwargs=model_kwargs,
+                    progress=False,
+                    device=device,
+                    eta=0.0
+                )
+            else:
+                samples = self.diffusion.p_sample_loop(
+                    sample_fn, 
+                    noise.shape, 
+                    noise, 
+                    clip_denoised=False,
+                    model_kwargs=model_kwargs,
+                    progress=False,
+                    device=device
+                )
+            
+            if using_cfg:
+                samples, _ = samples.chunk(2, dim=0)  
+            
+            return samples[0].cpu().numpy()
         
-        return actions_diff, actions_ar, max_probs, [t2-t1, t4-t3]# , t2-t1, t4-t3
+        def predict_diff():
+            noise, timestep, sample_fn, model_kwargs, using_cfg = prepare_diffusion()
+            normalized_actions = sample_diffusion(noise, sample_fn, model_kwargs, using_cfg)
+            return unnormalize_actions(normalized_actions)
+        
+        def predict_ar():
+            with torch.autocast("cuda", dtype=autocast_dtype, enabled=self.vlm.enable_mixed_precision_training):
+                noise = torch.randn(1, self.future_action_window_size+1, action_dim, device=device)
+                timestep = torch.randint(0, self.diffusion.num_timesteps, (self.future_action_window_size+1,), device=device)
+                
+                outputs = super(PrismaticVLM, self.vlm).generate(
+                    x=noise,
+                    proprio=cur_robot_state,
+                    t=timestep,
+                    input_ids=input_ids,
+                    pixel_values=pixel_values,
+                    max_new_tokens=self.get_action_dim(unnorm_key),
+                    gen_discret_action=False,
+                    ar_infer=True,
+                    output_scores=True,
+                    return_dict_in_generate=True,
+                    **kwargs
+                )
+            
+            logits = outputs.scores
+            probs = [torch.softmax(log, dim=-1) for log in logits]
+            last_n_tensors = probs[-self.get_action_dim(unnorm_key):]
+            max_probs = [tensor.max().item() for tensor in last_n_tensors]
+            
+            generated_ids = outputs.sequences
+            predicted_action_token_ids = generated_ids[0, -self.get_action_dim(unnorm_key):]
+            normalized_actions = self.action_tokenizer.decode_token_ids_to_actions(predicted_action_token_ids.cpu().numpy())
+            
+            actions = unnormalize_actions(normalized_actions)
+            return actions, max_probs
+        
+        if predict_mode == 'diff':
+            actions = predict_diff()
+            return actions
+        
+        elif predict_mode == 'ar':
+            actions, max_probs = predict_ar()
+            return actions, max_probs
+        
+        elif predict_mode == 'diff+ar':
+            actions_ar, max_probs = predict_ar()
+            
+            noise, timestep, sample_fn, model_kwargs, using_cfg = prepare_diffusion()
+            normalized_actions_diff = sample_diffusion(noise, sample_fn, model_kwargs, using_cfg)
+            actions_diff = unnormalize_actions(normalized_actions_diff)
+            
+            return actions_diff, actions_ar, max_probs
     
     @torch.inference_mode()
     def predict_action_batch(
