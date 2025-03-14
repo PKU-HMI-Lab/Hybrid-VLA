@@ -69,8 +69,8 @@ Our code is built based on [OpenVLA](https://github.com/openvla/openvla) and [Co
 
 We release our pretrained model's parameters as follows:
 
-- [Robotic Large-Scale Pretrained Checkpoint](https://github.com/PKU-HMI-Lab/Hybrid-VLA/edit/main/README.md)
-- [Simulation-Finetuned Checkpoint](https://github.com/PKU-HMI-Lab/Hybrid-VLA/edit/main/README.md)
+- [Robotic Large-Scale Pretrained Checkpoint](https://pan.baidu.com/s/134S9y8UwoNlyw3yUKozbRw?pwd=1spu)
+- [Simulation-Finetuned Checkpoint](https://pan.baidu.com/s/1f5zpPKoAJDRIHFIH602Bqg?pwd=3ca1)
 
 ## 💡Getting Started
 
