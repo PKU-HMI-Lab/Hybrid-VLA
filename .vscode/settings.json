@@ -1,0 +1,16 @@
+{
+    "TRAIN":{
+        "ENVIRONMENT": "/share/miniconda3/envs/4dvla_diff",
+        "TASK": "10tasks_selected_keyframe_mulview", // cb_cll_prib_tsd_4 close_box_sparse close_laptop_lid_sparse put_rubbish_in_bin_sparse
+        "FUTURE_ACTION_STEPS": "0",
+        "FREEZE_VISION": "true",
+        "FREEZE_LLM": "false",
+        "ACTION_TOKENIZER_EXIST": "true",
+        "USE_DIFF": "true",
+        "AR_DIFF_LOSS": "true",
+        "CLASS_DROPOUT_PROB": "0.0",
+        "REPEATED_DIFFUSION_STEPS": "4",
+    },
+    "HF_TOKEN": "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",
+    "DATE": "0312",
+}

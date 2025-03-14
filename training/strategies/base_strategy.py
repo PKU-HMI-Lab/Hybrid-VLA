@@ -282,11 +282,8 @@ class TrainingStrategy(ABC):
         ) as progress:
             self.vlm.train()
 
-            # Zero Gradients (just in case)
-            if self.vlm.use_ema is not None and self.vlm.use_ema == True:
-                self.vlm.ema_diffusion.eval()
             self.optimizer.zero_grad()
-
+            # print(self.mixed_precision_dtype, self.enable_mixed_precision_training)
             # [Contract] DataLoader wraps RLDS Loader (`.as_numpy_iterator() =>> implicit `.repeat()`)
             #   => This means looping over the DataLoader is basically "infinite" (so no outer loop over epochs).
             #      Slightly breaks default PyTorch semantics, which is why we adaptively compute `epoch` below.
@@ -338,8 +335,6 @@ class TrainingStrategy(ABC):
                     # Optimizer & LR Scheduler Step
                     self.optimizer.step()
                     self.lr_scheduler.step()
-                    if self.vlm.use_ema is not None and self.vlm.use_ema == True:
-                        update_ema(self.vlm.ema_diffusion, self.vlm.action_model)
                     self.optimizer.zero_grad()
                     # Compute epoch value using number of completed gradient steps
                     div = (len(vla_dataset) // self.global_batch_size) if (len(vla_dataset) // self.global_batch_size)!=0 else 1

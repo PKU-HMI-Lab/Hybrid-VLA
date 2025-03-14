@@ -5,28 +5,45 @@
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
 ![PyTorch](https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=white)
   
-[🌐**Project Page**](https://hybrid-vla.github.io/)
+[🌐**Project Page**](https://hybrid-vla.github.io/) | [✍️**Paper(Arxiv)**](https://hybrid-vla.github.io/) | [🎥**Demo**](https://hybrid-vla.github.io/)
+
+
+Jiaming Liu, Hao Chen, Pengju An, Zhuoyang Liu, Renrui Zhang, Chenyang Gu, Xiaoqi Li, Ziyu Guo, Sixiang Chen, 
+Mengzhen Liu, Chengkai Hou, Mengdi Zhao, KC alex Zhou, Pheng-Ann Heng, Shanghang Zhang
 
 </div>
 
+
+![](assets/teaser.png)
+**🤖 HybridVLA innovatively integrates diffusion and autoregressive action prediction within a single LLM, fully leveraging the continuity and probabilistic nature of diffusion alongside the reasoning capabilities of autoregressive modeling.** It undergoes pretraining on large, diverse, cross-embodied real-world robotic datasets and is further fine-tuned on both simulation and self-collected real-world data. HybridVLA achieves remarkable performance across various tasks, demonstrating strong generalization to unseen manipulated objects, backgrounds, spatial positions, and lighting conditions.
+
 ## ✨ News ✨
-- [2025/3/13] The Hybrid-VLA code has been officially released! 🎉 Check it out now for detailed implementation and usage.
+
+- [2025/03/13] HybridVLA is now live on arXiv! The pre-trained checkpoint on a large-scale robotic dataset has also been released.🚀 
+
+## ✨ Coming soon ✨
+
+- The training config and code will be officially released as soon as possible!
 
 ## 📦 Installation
 
-The code is built using Python 3.10, and can be run under any environment with Python 3.8 and above. We require PyTorch >= 2.2.0 and CUDA >= 12.0 (It may run with lower versions, but we have not tested it).
+The code is built using Python 3.10, we also recommand to use Python above Python 3.10. We require PyTorch >= 2.2.0 and CUDA >= 12.0 (It may run with lower versions, but we have not tested it).
+We recommend using [Miniconda](https://docs.conda.io/en/latest/miniconda.html) and create an environment as follows:
 
-We recommend using [Miniconda](https://docs.conda.io/en/latest/miniconda.html) and setting up an environment:
 ```bash
 conda create --name hybridvla python=3.10
 ```
-Next, clone our repo and install the required packages:
+
+Next, clone our repo and install the required packages with the following commands:
+
 ```bash
-git clone https://github.com/PKU-HMI-Lab/Hybrid-VLA.git
+git clone https://github.com/PKU-HMI-Lab/Hybrid-VLA
 cd Hybrid-VLA
 pip install -e .
 ```
+
 If you need to use the traning code, please also install the [Flash Attention](https://github.com/Dao-AILab/flash-attention):
+
 ```bash
 # Training additionally requires Flash-Attention 2 (https://github.com/Dao-AILab/flash-attention)
 pip install packaging ninja
@@ -41,66 +58,68 @@ pip install "flash-attn==2.5.5" --no-build-isolation
 
 ## 🧩 Framework
 
-Our framework is built based on OpenVLA, with a structure similar to Prismatic-VLM.
+Our code is built based on [OpenVLA](https://github.com/openvla/openvla) and [CogACT](https://github.com/microsoft/CogACT) and is organized in the following framework:
 
-- `conf`: dataset & models & vla config
+- `config`: config files for hydridvla training
+- `scripts`: scripts for training
+- `training`: strategies and utils for training
+- `models`: models including hybridvla models and backbones
 
-- `models`: models including backbones & vlm & hybridvla
+## 📈Pretrain Parameter
 
-- `overwatch`: record log info
+We release our pretrained model's parameters as follows:
 
-- `training`: training strategies & metrics
+- [Robotic Large-Scale Pretrained Checkpoint](https://github.com/PKU-HMI-Lab/Hybrid-VLA/edit/main/README.md)
+- [Simulation-Finetuned Checkpoint](https://github.com/PKU-HMI-Lab/Hybrid-VLA/edit/main/README.md)
 
-- `util`: kinds of util function
+## 💡Getting Started
 
-- `vla`: vla-datasets and action-tokenizer
+### Inference
 
-## 💡Usage
-
-### Using Hybrid-VLA pretrained model.
-
-- **Hybrid-VLA Model Checkpoints 📥** 
-You can either manually download the model weights (ViT-B-32.pt and lift3d_clip_base.pth) from [Hugging Face](https://huggingface.co/jiayueru/Lift3d/blob/main/README.md) and place them in `lift3d/models/lift3d/ckpt`, or they will be automatically downloaded for you. In case of automatic download, the weights will be cached in the `lift3d/models/lift3d/ckpt`.
-
-- **RLDS Dataset**
+Our model requires PIL image and text prompt as input, please refer to the code below for the minimal inference:
 
 ```python
-# see also scripts/test_toy.py
+from PIL import Image
+from models.load import load_vla
+import torch
+
 model = load_vla(
-        '<absolute-path-to-ckpt>',
-        load_for_training=False,
-        future_action_window_size=0,
-        use_diff=True, # choose weither to use diff
-        action_dim=7,
-        )
+      model_path,                 # The local path to the model checkpoint
+      load_for_training=False,        
+      hf_token=your_hf_token,
+      use_diff=True,
+    )                                 
+# about 30G Memory in fp32; 
 
 # (Optional) use "model.vlm = model.vlm.to(torch.bfloat16)" to load vlm in bf16
 
 model.to('cuda:0').eval()
 
-example_image: Image.Image = Image.open('<path-to-Hybrid-VLA>/assets/000.png') 
-example_prompt = "close the laptop"
-example_cur_robot_state = np.array([ 0.27849028, -0.00815899,  1.47193933, -3.14159094,  0.24234043,  3.14158629,  1.        ])
-actions_diff, _, _ = model.predict_action(
-            front_image=example_image,
-            instruction=example_prompt,
-            unnorm_key = 'rlbench',
-            cfg_scale = 0.0, 
-            use_ddim = True,
-            num_ddim_steps = 4,
-            action_dim = 7,
-            cur_robot_state = example_cur_robot_state,
-            predict_mode = 'diff+ar'
-            )
-    
-print(actions_diff)
+image: Image.Image = <input_your_image>     
+prompt = "pick up the block"           # input your prompt
+
+# Predict Action (7-DoF; un-normalize for RT-1 google robot data, i.e., fractal20220817_data)
+actions_diff, actions_ar, _, _ = model.predict_action_diff_ar(
+          image,
+          prompt,
+          unnorm_key='fractal20220817_data',    # input your unnorm_key of the dataset
+          cfg_scale = 0.0,                   
+          use_ddim = True,                   # use DDIM sampling
+          num_ddim_steps = 10,               # number of steps for DDIM sampling
+        )
 ```
 
-### Evaluation in LIFT3D simulator.
+## 🔍Test in RLBench
 
-we use [**LIFT3D**](https://github.com/PKU-HMI-Lab/LIFT3D) as our simulator. Please follow the [**Installation**](https://github.com/PKU-HMI-Lab/LIFT3D#-installation) section to set your environment.
+We evaluated our hybridvla in [RLBench](https://github.com/stepjam/RLBench), which based on the CoppeliaSim simulator, to build the testing environment quickly, please refer to [LIFT3D](https://github.com/PKU-HMI-Lab/LIFT3D)'s instructions to install and test in RLBench.
 
-Then follow scripts/sim.py to test your model. 
+Please remember to set the environment variable:
+
+```bash
+export COPPELIASIM_ROOT=${HOME}/CoppeliaSim
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$COPPELIASIM_ROOT
+export QT_QPA_PLATFORM_PLUGIN_PATH=$COPPELIASIM_ROOT
+```
 
 ## 📜️ License
 
