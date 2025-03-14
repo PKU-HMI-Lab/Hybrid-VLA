@@ -76,44 +76,53 @@ We release our pretrained model's parameters as follows:
 
 ### Inference
 
-Our model requires PIL image and text prompt as input, please refer to the code below for the minimal inference:
+Our model requires PIL image and text prompt as input, please refer to the code below for the minimal inference :
 
 ```python
+# also see scripts/test_toy.py
 from PIL import Image
-from models.load import load_vla
+from vla import load_vla
 import torch
+import numpy as np
+import time
 
 model = load_vla(
-      model_path,                 # The local path to the model checkpoint
-      load_for_training=False,        
-      hf_token=your_hf_token,
-      use_diff=True,
-    )                                 
-# about 30G Memory in fp32; 
+        '<absolute-path-to-ckpt>',
+        load_for_training=False,
+        future_action_window_size=0,
+        use_diff=True, # choose weither to use diff
+        action_dim=7,
+        )
 
 # (Optional) use "model.vlm = model.vlm.to(torch.bfloat16)" to load vlm in bf16
 
 model.to('cuda:0').eval()
 
-image: Image.Image = <input_your_image>     
-prompt = "pick up the block"           # input your prompt
-
-# Predict Action (7-DoF; un-normalize for RT-1 google robot data, i.e., fractal20220817_data)
-actions_diff, actions_ar, _, _ = model.predict_action_diff_ar(
-          image,
-          prompt,
-          unnorm_key='fractal20220817_data',    # input your unnorm_key of the dataset
-          cfg_scale = 0.0,                   
-          use_ddim = True,                   # use DDIM sampling
-          num_ddim_steps = 10,               # number of steps for DDIM sampling
-        )
+example_image: Image.Image = Image.open('<path-to-Hybrid-VLA>/assets/000.png') 
+example_prompt = "close the laptop"
+example_cur_robot_state = np.array([ 0.27849028, -0.00815899,  1.47193933, -3.14159094,  0.24234043,  3.14158629,  1.        ])
+actions_diff, actions_ar, _ = model.predict_action(
+            front_image=example_image,
+            instruction=example_prompt,
+            unnorm_key = 'rlbench',
+            cfg_scale = 0.0, 
+            use_ddim = True,
+            num_ddim_steps = 4,
+            action_dim = 7,
+            cur_robot_state = example_cur_robot_state,
+            predict_mode = 'diff+ar' # or 'ar' or 'diff'
+            )
+    
+print(actions_diff)
 ```
 
 ## 🔍Test in RLBench
 
 We evaluated our hybridvla in [RLBench](https://github.com/stepjam/RLBench), which based on the CoppeliaSim simulator, to build the testing environment quickly, please refer to [LIFT3D](https://github.com/PKU-HMI-Lab/LIFT3D)'s instructions to install and test in RLBench.
 
-Please remember to set the environment variable:
+See the ``scripts/sim.py`` for more details.
+
+**Please remember** to set the environment variable:
 
 ```bash
 export COPPELIASIM_ROOT=${HOME}/CoppeliaSim
