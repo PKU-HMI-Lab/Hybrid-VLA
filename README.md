@@ -60,10 +60,12 @@ pip install "flash-attn==2.5.5" --no-build-isolation
 
 Our code is built based on [OpenVLA](https://github.com/openvla/openvla) and [CogACT](https://github.com/microsoft/CogACT) and is organized in the following framework:
 
-- `config`: config files for hydridvla training
-- `scripts`: scripts for training
-- `training`: strategies and utils for training
-- `models`: models including hybridvla models and backbones
+- `conf`: config files for hydridvla training
+- `scripts`: scripts for training and testing
+- `training`: contains strategies for training
+- `models`: contains hybridvla models, including backbone & diffusion & vlm & vla
+- `util`: contains different kinds of tools funtion
+- `vla`: from openvla's vla structure, including action tokenizer, etc.
 
 ## 📈Pretrain Parameter
 
