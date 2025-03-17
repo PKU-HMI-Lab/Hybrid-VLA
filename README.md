@@ -64,7 +64,7 @@ Our code is built based on [OpenVLA](https://github.com/openvla/openvla) and [Co
 - `scripts`: scripts for training and testing
 - `training`: contains strategies for training
 - `models`: contains hybridvla models, including backbone & diffusion & vlm & vla
-- `util`: contains different kinds of tools funtion
+- `util`: contains different kinds of tools function
 - `vla`: from openvla's vla structure, including action tokenizer, etc.
 
 ## 📈Pretrain Parameter
