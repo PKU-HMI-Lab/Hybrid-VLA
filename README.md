@@ -182,7 +182,6 @@ torchrun --standalone --nnodes ${NODES} --nproc-per-node ${NUM_GPUS} train.py \
   --use_diff ${USE_DIFF} \
   --ar_diff_loss ${AR_DIFF_LOSS} \
   --is_resume False \
-  --hf_token ${HF_TOKEN} \
   --pretrained_checkpoint <absolute-path-to-ckpt>
 ```
 
