@@ -116,7 +116,7 @@ To fully fine-tune the pretrained models, we use PyTorch Fully Sharded Data Para
 
 First, download our pretrain model, and change `--pretrained_checkpoint` to your local ckpt absolute path.
 
-Next, create a Hugging Face user access token and export the token value. Make sure your token have right access to `llama2-7b` repo.
+Next, create a Hugging Face user access token and export the token value. Make sure your token have right access to [llama2-7b](https://huggingface.co/meta-llama/Llama-2-7b) repo.
 ```python
 # create .hf_token file and put your user access token in.
 cd <path-to-Hybrid-VLA>
