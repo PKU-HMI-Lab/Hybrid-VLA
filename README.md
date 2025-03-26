@@ -67,16 +67,12 @@ Our code is built based on [OpenVLA](https://github.com/openvla/openvla) and [Co
 - `util`: contains different kinds of tools funtion
 - `vla`: from openvla's vla structure, including action tokenizer, etc.
 
-## 📈Pretrain Parameter
+## 💡Getting Started
 
 We release our pretrained model's parameters as follows:
 
 - [Robotic Large-Scale Pretrained Checkpoint](https://pan.baidu.com/s/134S9y8UwoNlyw3yUKozbRw?pwd=1spu)
 - [Simulation-Finetuned Checkpoint](https://pan.baidu.com/s/1f5zpPKoAJDRIHFIH602Bqg?pwd=3ca1)
-
-## 💡Getting Started
-
-### Inference
 
 Our model requires PIL image and text prompt as input, please refer to the code below for the minimal inference :
 
@@ -116,6 +112,78 @@ actions_diff, actions_ar, _ = model.predict_action(
             )
     
 print(actions_diff)
+```
+
+### Fully Fine-Tuning
+To fully fine-tune the pretrained models, we use PyTorch Fully Sharded Data Parallel(FSDP).The training script used is from CogACT.
+
+First, download our pretrain model, and change `--pretrained_checkpoint` to your local ckpt absolute path.
+
+Next, create a Hugging Face user access token and export the token value. Make sure your token have right access to `llama2-7b` repo.
+```python
+# create .hf_token file and put your user access token in.
+cd <path-to-Hybrid-VLA>
+vim .hf_token
+```
+
+Then launch the training script. We use one node with 8 A100 GPUs as an example.
+
+```sh
+# parameter
+export PYTHONPATH=<path-to-Hybrid-VLA>:$PYTHONPATH
+
+FUTURE_ACTION_STEPS=0
+SETTING=<training-setting>
+FREEZE_VISON=true
+FREEZE_LLM=false
+LOAD_DIT=false
+ACTION_TOKENIZER_EXIST=true
+USE_DIFF=true
+AR_DIFF_LOSS=true
+REPEATED_DIFFUSION_STEPS=4
+CLASS_DROPOUT_PROB=0.0
+
+DATA_MIX=rlbench
+TASK=<your-task-name>
+NUM_GPUS=8
+NODES=1
+BATCH_SIZE=32
+EPOCHS=600
+LEARNING_RATE=2e-5
+ACTION_DIM=7
+
+DATA_ROOT=<your-rlds-data>
+EXP_ROOT=<runs-dir> #for example, ./runs
+# launch
+torchrun --standalone --nnodes ${NODES} --nproc-per-node ${NUM_GPUS} train.py \
+  --vla.type prism-dinosiglip-224px+oxe+diffusion \
+  --vla.data_mix ${DATA_MIX} \
+  --vla.base_vlm prism-dinosiglip-224px+7b \
+  --need_to_sub 0 \
+  --vla.expected_world_size $((${NUM_GPUS} * ${NODES})) \
+  --vla.per_device_batch_size ${BATCH_SIZE} \
+  --vla.global_batch_size $((${NUM_GPUS} * ${NODES} * ${BATCH_SIZE})) \
+  --vla.learning_rate ${LEARNING_RATE} \
+  --vla.epochs ${EPOCHS} \
+  --vla.freeze_vision_backbone ${FREEZE_VISON} \
+  --vla.freeze_llm_backbone ${FREEZE_LLM} \
+  --data_root_dir ${DATA_ROOT}/${TASK} \
+  --run_root_dir ${EXP_ROOT} \
+  --run_id exp_${TASK}_${SETTING} \
+  --image_aug false \
+  --wandb_project hybridvla \
+  --wandb_entity <your-w&b-account> \
+  --save_interval 100 \
+  --action_dim ${ACTION_DIM} \
+  --repeated_diffusion_steps ${REPEATED_DIFFUSION_STEPS} \
+  --action_tokenizer_exist ${ACTION_TOKENIZER_EXIST} \
+  --future_action_window_size ${FUTURE_ACTION_STEPS} \
+  --class_dropout_prob ${CLASS_DROPOUT_PROB} \
+  --use_diff ${USE_DIFF} \
+  --ar_diff_loss ${AR_DIFF_LOSS} \
+  --is_resume False \
+  --hf_token ${HF_TOKEN} \
+  --pretrained_checkpoint <absolute-path-to-ckpt>
 ```
 
 ## 🔍Test in RLBench

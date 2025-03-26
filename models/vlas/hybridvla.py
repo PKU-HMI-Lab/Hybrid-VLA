@@ -84,6 +84,55 @@ class HybridVLA(nn.Module):
     def freeze_backbones(self, stage):
         self.vlm.freeze_backbones(stage)
 
+    def _repeat_tensor(
+        self, 
+        tensor: Optional[torch.Tensor], 
+        repeated_diffusion_steps: int
+    ) -> Optional[torch.Tensor]:
+        """
+        Repeat a tensor along the first dimension
+
+        Args:
+            tensor: Input tensor to repeat
+            repeated_diffusion_steps: Number of times to repeat
+
+        Returns:
+            Repeated tensor or None
+        """
+        if tensor is None:
+            return None
+        return tensor.repeat(repeated_diffusion_steps, *([1] * (tensor.ndimension() - 1)))
+
+    def _repeat_pixel_values(
+        self, 
+        pixel_values: Union[torch.Tensor, Dict[str, torch.Tensor], None], 
+        repeated_diffusion_steps: int
+    ) -> Union[torch.Tensor, Dict[str, torch.Tensor], None]:
+        """
+        Repeat pixel values, handling different input types
+
+        Args:
+            pixel_values: Pixel values (tensor or dict)
+            repeated_diffusion_steps: Number of times to repeat
+
+        Returns:
+            Repeated pixel values
+        """
+        if pixel_values is None:
+            return None
+
+        if isinstance(pixel_values, torch.Tensor):
+            return pixel_values.repeat(repeated_diffusion_steps, *([1] * (pixel_values.ndimension() - 1)))
+        
+        if isinstance(pixel_values, dict):
+            return {
+                key: value.repeat(repeated_diffusion_steps, *([1] * (value.ndimension() - 1)))
+                for key, value in pixel_values.items()
+            }
+        
+        raise ValueError(f"Unsupported `pixel_values` type = {type(pixel_values)}")
+
+
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
@@ -102,38 +151,53 @@ class HybridVLA(nn.Module):
         action_masks = None,
         use_diff: Optional[bool] = None,
     ) -> Tuple:
-        """Run a forward pass through the VLM, returning a CausalLMOutputWithPast instance (contains loss)."""
+        """
+        Forward pass through the Diffusion-based Vision-Language Model
+
+        Args:
+            Multiple input parameters for VLM and diffusion process
+            repeated_diffusion_steps: Number of times to repeat inputs
+            use_diff: Flag to enable diffusion mode
+
+        Returns:
+            Loss and output in diffusion mode, or just output in normal mode
+        """
+        # Update diffusion mode flag
         if use_diff is not None:
             self.use_diff = use_diff
 
-        proprio = proprio.repeat(repeated_diffusion_steps, *([1] * (proprio.ndimension() - 1)))
+        # Repeat proprio inputs
+        proprio = self._repeat_tensor(proprio, repeated_diffusion_steps)
 
+        # Diffusion-specific processing
         if self.use_diff:
-            actions = actions.repeat(repeated_diffusion_steps, *([1] * (actions.ndimension() - 1)))
-            # actions_history = actions[:,0:self.past_action_window_size,:]
+            # Repeat inputs
+            actions = self._repeat_tensor(actions, repeated_diffusion_steps)
+            input_ids = self._repeat_tensor(input_ids, repeated_diffusion_steps)
+            attention_mask = self._repeat_tensor(attention_mask, repeated_diffusion_steps)
+            action_masks = self._repeat_tensor(action_masks, repeated_diffusion_steps)
+            labels = self._repeat_tensor(labels, repeated_diffusion_steps)
+            
+            # Repeat pixel values with type-safe handling
+            pixel_values = self._repeat_pixel_values(pixel_values, repeated_diffusion_steps)
+
+            # Extract future actions
             actions_future = actions[:, -(self.future_action_window_size+1):, :]
 
-            input_ids = input_ids.repeat(repeated_diffusion_steps, *([1] * (input_ids.ndimension() - 1)))
-            attention_mask = attention_mask.repeat(repeated_diffusion_steps, *([1] * (attention_mask.ndimension() - 1)))
-            action_masks = action_masks.repeat(repeated_diffusion_steps, *([1] * (action_masks.ndimension() - 1)))
-            labels = labels.repeat(repeated_diffusion_steps, *([1] * (labels.ndimension() - 1)))
-
-            if isinstance(pixel_values, torch.Tensor):
-                pixel_values = pixel_values.repeat(repeated_diffusion_steps, *([1] * (pixel_values.ndimension() - 1)))
-            elif isinstance(pixel_values, dict):
-                pixel_values = {
-                    key: value.repeat(repeated_diffusion_steps, *([1] * (value.ndimension() - 1)))
-                    for key, value in pixel_values.items()
-                }
-            else:
-                raise ValueError(f"Unsupported `pixel_values` type = {type(pixel_values)}")
-        
+            # Generate noise and timesteps for diffusion
             noise = torch.randn_like(actions_future)  # [B, T, C]
-            timestep = torch.randint(0, self.diffusion.num_timesteps, (actions_future.size(0),), device= actions.device)
+            timestep = torch.randint(
+                0, 
+                self.diffusion.num_timesteps, 
+                (actions_future.size(0),), 
+                device=actions.device
+            )
+            
+            # Apply diffusion sampling
             x = self.diffusion.q_sample(actions_future, timestep, noise)
 
-        if self.use_diff:
-            output,noise_pred = self.vlm(
+            # Run VLM with diffusion
+            output, noise_pred = self.vlm(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 pixel_values=pixel_values,
@@ -147,11 +211,15 @@ class HybridVLA(nn.Module):
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
-                use_diff = self.use_diff,
+                use_diff=self.use_diff,
             )
+
+            # Compute loss
             assert noise_pred.shape == noise.shape == actions.shape
             loss = ((noise_pred - noise) ** 2).mean()
             return loss, output
+
+        # Non-diffusion mode
         else:
             output = self.vlm(
                 input_ids=input_ids,
@@ -165,7 +233,7 @@ class HybridVLA(nn.Module):
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
-                use_diff = self.use_diff,
+                use_diff=self.use_diff,
             )
             return output
         

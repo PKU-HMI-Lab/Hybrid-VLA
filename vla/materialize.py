@@ -38,10 +38,7 @@ def get_vla_dataset_and_collator(
     need_to_sub: int = 0,
 ) -> Tuple[Dataset, ActionTokenizer, PaddedCollatorForActionPrediction]:
     """Initialize RLDS Dataset (wraps TFDS), ActionTokenizer, and initialize transform/collation functions."""
-    if not action_tokenizer_exist:
-        action_tokenizer = None
-    else:
-        action_tokenizer = ActionTokenizer(tokenizer, need_to_sub)
+    action_tokenizer = ActionTokenizer(tokenizer, need_to_sub) if action_tokenizer_exist else None
     # action_tokenizer = ActionTokenizer(tokenizer)
     batch_transform = RLDSBatchTransform(
         action_tokenizer, tokenizer, image_transform, prompt_builder_fn, predict_stop_token=predict_stop_token
