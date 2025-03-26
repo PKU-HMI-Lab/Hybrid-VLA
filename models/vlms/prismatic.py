@@ -474,7 +474,7 @@ class PrismaticVLM(VLM):
             input_embeddings[:, 1:, :]
         ], dim=1)
         
-        return z, input_embeddings
+        return z, input_embeddings, projected_patch_embeddings
 
     def _handle_cache_forward(
         self, 
@@ -673,7 +673,7 @@ class PrismaticVLM(VLM):
             ), None
 
         # Prepare multimodal inputs
-        z, input_embeddings = self._prepare_multimodal_inputs(
+        z, input_embeddings, projected_patch_embeddings = self._prepare_multimodal_inputs(
             input_ids, pixel_values, multimodal_indices
         )
 
@@ -687,7 +687,7 @@ class PrismaticVLM(VLM):
         # Prepare multimodal embeddings
         multimodal_embeddings, multimodal_attention_mask, multimodal_labels, last_true_indices = self._prepare_multimodal_embeddings(
             z, input_ids, multimodal_indices, pixel_values, proprio, t, x, 
-            attention_mask, labels, z[:, 1:1+pixel_values.shape[1], :]
+            attention_mask, labels, projected_patch_embeddings
         )
 
         # Prepare unimodal data
