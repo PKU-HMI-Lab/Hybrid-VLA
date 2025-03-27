@@ -480,6 +480,10 @@ class PrismaticVLM(VLM):
         self, 
         input_ids: torch.Tensor, 
         past_key_values: Optional[List[torch.FloatTensor]] = None,
+        gen_discret_action: Optional[torch.LongTensor] = None,
+        ar_infer: Optional[bool] = None,
+        x: Optional[torch.FloatTensor] = None,
+        t: Optional[torch.FloatTensor] = None,
         **kwargs
     ):
         """
@@ -499,6 +503,25 @@ class PrismaticVLM(VLM):
                 past_key_values=past_key_values,
                 **{k: v for k, v in kwargs.items() if v is not None}
             )
+        elif past_key_values is not None and self.use_diff and not gen_discret_action and not ar_infer:
+            t = self.t_embedder(t).unsqueeze(1) if t is not None else None
+            x = self.x_embedder(x)
+            inputs_embeds = torch.cat([t, x], dim=1)
+            past_key_values = tuple(
+                (k[:, :, :-2, :], v[:, :, :-2, :]) for k, v in past_key_values
+            )
+            output = self.llm_backbone(
+                past_key_values=past_key_values,
+                inputs_embeds=inputs_embeds,
+                **{k: v for k, v in kwargs.items() if v is not None}
+            )
+            last_hidden = output.hidden_states[-1]
+            last_hidden = self.final_layer(last_hidden)
+            action_out = []
+            for i, indices in enumerate(range(len(input_ids))):
+                action_out.append(last_hidden[i, 1 : self.future_action_window_size + 2, :].unsqueeze(0)) # [B, A, D]
+            action_out = torch.cat(action_out, dim=0)
+            return output, action_out
         return None
 
     def _prepare_multimodal_embeddings(
@@ -646,15 +669,15 @@ class PrismaticVLM(VLM):
         """
         # Store local flags
         self.gen_discret_action = gen_discret_action
-
-        # Handle cache-based forward propagation
-        cache_output = self._handle_cache_forward(input_ids, past_key_values, **kwargs)
-        if cache_output is not None:
-            return cache_output
-
+        
         # Set differential use flag
         if use_diff is not None:
             self.use_diff = use_diff
+
+        # Handle cache-based forward propagation
+        cache_output = self._handle_cache_forward(input_ids, past_key_values, gen_discret_action, ar_infer, x, t, **kwargs)
+        if cache_output is not None:
+            return cache_output
 
         # Handle empty or invalid inputs
         if input_ids.shape[1] == 1 or pixel_values is None:
