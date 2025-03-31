@@ -344,7 +344,7 @@ class HybridVLA(nn.Module):
         wrist_left_image :Optional[Image] = None,
         instruction: str = "", 
         unnorm_key: Optional[str] = None, 
-        cfg_scale: float = 1.5, 
+        cfg_scale: float = 0.0, 
         use_ddim: bool = False,
         num_ddim_steps: int = 5,
         action_dim: int = 7,
@@ -386,17 +386,11 @@ class HybridVLA(nn.Module):
         
         has_empty_token = lambda: torch.all(input_ids[:, -1] == 29871)
         
-        if predict_mode == 'diff':
-            input_ids = append_tokens([29871])
-        elif predict_mode in ['ar', 'ar+diff']:
+        if self.vlm.model_id == 'prism-dinosiglip-224px+7b':
             if not has_empty_token():
-                input_ids = append_tokens([29871])
-        elif predict_mode == 'diff+ar':
-            if self.vlm.model_id == 'prism-dinosiglip-224px+7b':
-                if not has_empty_token():
-                    input_ids = append_tokens([29871, 32001, 32002, 29871])
-            elif self.vlm.model_id == 'phi-2+3b':
-                input_ids = append_tokens([220, 50296, 50297])
+                input_ids = append_tokens([29871, 32001, 32002, 29871])
+        elif self.vlm.model_id == 'phi-2+3b':
+            input_ids = append_tokens([220, 50296, 50297])
         else:
             raise ValueError(f"Unsupported predict_mode = {predict_mode}")
         

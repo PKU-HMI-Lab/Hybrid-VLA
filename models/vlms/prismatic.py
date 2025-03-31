@@ -513,6 +513,9 @@ class PrismaticVLM(VLM):
             output = self.llm_backbone(
                 past_key_values=past_key_values,
                 inputs_embeds=inputs_embeds,
+                output_attentions=False,
+                output_hidden_states=True,
+                return_dict=True,
                 **{k: v for k, v in kwargs.items() if v is not None}
             )
             last_hidden = output.hidden_states[-1]
@@ -656,6 +659,9 @@ class PrismaticVLM(VLM):
         use_diff: Optional[bool] = None,
         gen_discret_action: Optional[torch.LongTensor] = None,
         ar_infer: Optional[bool] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = True,
+        return_dict: Optional[bool] = True,
         **kwargs
     ) -> Union[CausalLMOutputWithPast, Tuple[CausalLMOutputWithPast, torch.Tensor]]:
         """
@@ -762,6 +768,9 @@ class PrismaticVLM(VLM):
             past_key_values=past_key_values,
             inputs_embeds=fused_embeddings,
             labels=fused_labels,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
             **{k: v for k, v in kwargs.items() if v is not None}
         )
         

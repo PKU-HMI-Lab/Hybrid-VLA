@@ -59,7 +59,11 @@ class RLDSBatchTransform:
         if self.action_tokenizer is None:
             conversation = [
                 {"from": "human", "value": f"What action should the robot take to {lang}?"},
-                {"from": "gpt", "value": ""},
+                {"from": "gpt", "value": f"<BOD><EOD>"},
+            ]
+            conversation_noise = [
+                {"from": "human", "value": f"What action should the robot take to {lang}?"},
+                {"from": "gpt", "value": f"<BOD><EOD>"},
             ]
         else:
             # Construct Chat-based Prompt =>> Input is default query + language instruction, output are the action tokens
