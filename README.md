@@ -199,3 +199,17 @@ export QT_QPA_PLATFORM_PLUGIN_PATH=$COPPELIASIM_ROOT
 ## 📜️ License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 📚 BibTeX
+
+```tex
+@misc{liu2025hybridvlacollaborativediffusionautoregression,
+      title={HybridVLA: Collaborative Diffusion and Autoregression in a Unified Vision-Language-Action Model}, 
+      author={Jiaming Liu and Hao Chen and Pengju An and Zhuoyang Liu and Renrui Zhang and Chenyang Gu and Xiaoqi Li and Ziyu Guo and Sixiang Chen and Mengzhen Liu and Chengkai Hou and Mengdi Zhao and KC alex Zhou and Pheng-Ann Heng and Shanghang Zhang},
+      year={2025},
+      eprint={2503.10631},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2503.10631}, 
+}
+```
