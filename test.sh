@@ -13,7 +13,6 @@ python scripts/sim.py \
     --cuda 0 \
     --use-diff 1 \
     --use-ar 1 \
-    --cfg-scale 0 \
     --threshold 5.8 \
     --max-steps 10 \
     --num-episodes 20 \
