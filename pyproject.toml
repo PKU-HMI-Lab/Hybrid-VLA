@@ -5,9 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hybridvla"
 authors = [
-    {name = "Qixiu Li", email="liqx23@mails.tsinghua.edu.cn"},
-    {name = "Yaobo Liang", email="yalia@microsoft.com"},
-    {name = "Zeyu Wang", email="skyw95357@gmail.com"}
+    {name = "Jiaming Liu", email="jiamingliu@stu.pku.edu.cn"},
+    {name = "Hao Chen", email="hchen22@link.cuhk.edu.hk"},
 ]
 description = "HybridVLA: Collaborative Diffusion and Autoregression in a Unified Vision-Language-Action Model"
 version = "0.0.1"
@@ -44,11 +43,11 @@ dependencies = [
     "sentencepiece==0.1.99",
     "timm==0.9.10",
     "tokenizers==0.19.1",
-    "torch>=2.2.0",
-    "torchvision>=0.16.0",
-    "torchaudio",
+    "torch==2.5.1",
+    "torchvision==0.20.1",
+    "torchaudio==2.5.1",
     "transformers==4.40.1",
-    "wandb",
+    "wandb==0.19.0",
     "tensorflow==2.15.0",
     "tensorflow_datasets==4.9.3",
     "tensorflow_graphics==2021.12.3",

@@ -1,6 +1,11 @@
 __pycache__/
 *.egg-info/
 .hf_token
-runs/
-LIFT3D/
 .vscode/
+result/
+exp/
+train.sh
+test_private.sh
+LIFT3D/
+test_env_requirements.txt
+README_1.md
