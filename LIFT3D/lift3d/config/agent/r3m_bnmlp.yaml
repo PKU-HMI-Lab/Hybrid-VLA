@@ -1,0 +1,11 @@
+name: R3M_BatchNormMLP
+instantiate_config:
+  _target_: lift3d.models.VisionGuidedBatchNormMLP
+  image_encoder:
+    _target_: lift3d.models.R3MEncoder
+    model_name: resnet34  # resnet18, resnet34, resnet50
+    device: ${device}
+    freeze: True
+  policy_hidden_dims: [256, 256, 256]
+  nonlinearity: relu
+  dropout_rate: 0.0

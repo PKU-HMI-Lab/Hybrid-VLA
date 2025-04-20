@@ -1,0 +1,12 @@
+name: R3M_MLP
+instantiate_config:
+  _target_: lift3d.models.VisionGuidedMLP
+  image_encoder:
+    _target_: lift3d.models.R3MEncoder
+    model_name: resnet34  # resnet18, resnet34, resnet50
+    device: ${device}
+    freeze: True
+  image_dropout_rate: 0.0
+  robot_state_dropout_rate: 0.0
+  policy_hidden_dims: [256, 256, 256]
+  policy_head_init_method: orthogonal

@@ -1,0 +1,9 @@
+name: PointNext_BatchNormMLP
+instantiate_config:
+  _target_: lift3d.models.PointCloudGuidedBatchNormMLP
+  point_cloud_encoder:
+    _target_: lift3d.models.PointNextModel
+    config_file: point_next.yaml
+  policy_hidden_dims: [256, 256, 256]
+  nonlinearity: relu
+  dropout_rate: 0.0

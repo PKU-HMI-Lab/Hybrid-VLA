@@ -1,0 +1,10 @@
+name: VC1_BatchNormMLP
+instantiate_config:
+  _target_: lift3d.models.VisionGuidedBatchNormMLP
+  image_encoder:
+    _target_: lift3d.models.VC1Encoder
+    model_name: vc1_vitb  # ViT-B/32, ViT-L/14
+    freeze: True
+  policy_hidden_dims: [256, 256, 256]
+  nonlinearity: relu
+  dropout_rate: 0.0

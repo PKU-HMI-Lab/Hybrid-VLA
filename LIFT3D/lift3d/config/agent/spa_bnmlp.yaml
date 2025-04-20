@@ -1,0 +1,10 @@
+name: SPA_BatchNormMLP
+instantiate_config:
+  _target_: lift3d.models.VisionGuidedBatchNormMLP
+  image_encoder:
+    _target_: lift3d.models.SPAEncoder
+    model_name: vit_base  # vit_base, vit_large
+    freeze: True
+  policy_hidden_dims: [256, 256, 256]
+  nonlinearity: relu
+  dropout_rate: 0.0

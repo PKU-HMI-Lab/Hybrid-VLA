@@ -4,9 +4,8 @@
 
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
 ![PyTorch](https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=white)
-  
-[🌐**Project Page**](https://hybrid-vla.github.io/) | [✍️**Paper(Arxiv)**](https://hybrid-vla.github.io/) | [🎥**Demo**](https://hybrid-vla.github.io/)
 
+[🌐**Project Page**](https://hybrid-vla.github.io/) | [✍️**Paper(Arxiv)**](https://arxiv.org/abs/2503.10631) | [🎥**Demo**](https://hybrid-vla.github.io/)
 
 Jiaming Liu, Hao Chen, Pengju An, Zhuoyang Liu, Renrui Zhang, Chenyang Gu, Xiaoqi Li, Ziyu Guo, Sixiang Chen, 
 Mengzhen Liu, Chengkai Hou, Mengdi Zhao, KC alex Zhou, Pheng-Ann Heng, Shanghang Zhang
@@ -145,7 +144,7 @@ TASK=<your-task-name>
 NUM_GPUS=8
 NODES=1
 BATCH_SIZE=32
-EPOCHS=600
+EPOCHS=300
 LEARNING_RATE=2e-5
 ACTION_DIM=7
 
@@ -184,17 +183,37 @@ torchrun --standalone --nnodes ${NODES} --nproc-per-node ${NUM_GPUS} train.py \
 
 ## 🔍Test in RLBench
 
-We evaluated our hybridvla in [RLBench](https://github.com/stepjam/RLBench), which based on the CoppeliaSim simulator, to build the testing environment quickly, please refer to [LIFT3D](https://github.com/PKU-HMI-Lab/LIFT3D)'s instructions to install and test in RLBench.
-
-We have documented the test results: [Test_Result](https://pan.baidu.com/s/15-kMaHyHqCSSj3YTwhxvWQ?pwd=c9r2). For more implementation details, please see ``test.sh`` and ``scripts/sim.py``.
-
-**Please remember** to set the environment variable:
+We evaluated our hybridvla in [RLBench](https://github.com/stepjam/RLBench), which based on the CoppeliaSim simulator. Install the virtual environment for testing in RLBench according to the following steps and begin your test. Thanks to the amazing work [LIFT3D](https://github.com/PKU-HMI-Lab/LIFT3D).
 
 ```bash
+conda create --name hybridvla_test python=3.11
+conda activate hybridvla_test
+
+cd Hybrid-VLA
+pip install -r test_env_requirements.txt
+pip install git+https://github.com/moojink/dlimp_openvla@040105d256bd28866cc6620621a3d5f7b6b91b46
+pip install git+https://github.com/arnoldland/openvla@5603207085d55148682e2a35b868ad77d7b42ece
+
 export COPPELIASIM_ROOT=${HOME}/CoppeliaSim
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$COPPELIASIM_ROOT
 export QT_QPA_PLATFORM_PLUGIN_PATH=$COPPELIASIM_ROOT
+
+wget https://downloads.coppeliarobotics.com/V4_1_0/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
+mkdir -p $COPPELIASIM_ROOT && tar -xf CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz -C $COPPELIASIM_ROOT --strip-components 1
+rm -rf CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
+
+cd LIFT3D/third_party/RLBench
+pip install -e .
+cd ../../..
+
+cd LIFT3D
+pip install -e .
+cd ..
 ```
+
+See the ``scripts/sim.py`` for more details.
+
+We have documented the test results: [Test_Result](https://pan.baidu.com/s/15-kMaHyHqCSSj3YTwhxvWQ?pwd=c9r2). For more implementation details, please see ``test.sh`` and ``scripts/sim.py``.
 
 ## 📜️ License
 

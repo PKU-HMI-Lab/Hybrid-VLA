@@ -1,0 +1,29 @@
+name: RLBench
+
+rotation_representation: quaternion  # quaternion, euler
+
+dataset_instantiate_config:
+  _target_: lift3d.dataset.RLBenchDataset
+
+evaluator_instantiate_config:
+  _target_: lift3d.envs.RLBenchEvaluator
+  image_size: ${image_size}
+  action_mode: 
+    _target_: lift3d.envs.RLBenchActionMode.eepose_then_gripper_action_mode
+    absolute: False
+  camera_name: ${camera_name}
+  point_cloud_camera_names:
+    - ${camera_name}
+  use_point_crop: True
+  num_points: 1024
+  max_episode_length: 200
+  rotation_representation: ${benchmark.rotation_representation}
+  headless: True
+  verbose_warnings: False
+  cinematic_record_enabled: False
+  cinematic_cam_resolution: [1280, 720]
+  cinematic_rotate_speed: 0.005
+  cinematic_cam_fps: 30
+
+loss_func:
+  _target_: lift3d.loss.eepose.compute_loss_cosine_similarity_quaternion

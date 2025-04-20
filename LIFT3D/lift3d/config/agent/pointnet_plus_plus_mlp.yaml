@@ -1,0 +1,9 @@
+name: PointNet++_MLP
+instantiate_config:
+  _target_: lift3d.models.PointCloudGuidedMLP
+  point_cloud_encoder:
+    _target_: lift3d.models.pointnet.model_loader.Pointnet2Enc
+  point_cloud_dropout_rate: 0.0
+  robot_state_dropout_rate: 0.0
+  policy_hidden_dims: [256, 256, 256]
+  policy_head_init_method: orthogonal

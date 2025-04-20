@@ -6,6 +6,4 @@ result/
 exp/
 train.sh
 test_private.sh
-LIFT3D/
-test_env_requirements.txt
 README_1.md

@@ -1,0 +1,50 @@
+defaults:
+  - agent: clip_mlp
+  - benchmark: rlbench
+
+# Experiment settings
+seed: 0
+device: cuda:0
+
+# Task settings
+task_name: close_box
+camera_name: front
+image_size: 224
+
+# Data settings
+project_root: ???
+dataset_dir: ${project_root}/data/rlbench/${task_name}.zarr
+dataloader:
+  batch_size: 256  # 256 for 2d encoders, 16 for 3d encoders
+  num_workers: 0
+  shuffle: True
+  drop_last: True
+  pin_memory: True
+
+# Training settings
+train:
+  clip_grad_value: 0.0
+  learning_rate: 0.001
+  num_epochs: 100
+  scheduler_instantiate_config:
+    _target_: lift3d.helpers.pytorch.Optimizers.get_warmup_cosine_annealing_scheduler
+    num_warmup_epochs: 10
+    num_epochs: ${train.num_epochs}
+    warmup_factor: 0.1
+    
+# Evaluation settings
+evaluation:
+  num_skip_epochs: 0
+  validation_frequency_epochs: 5
+  validation_trajs_num: 25
+  save_best_model: True
+
+# Logging settings
+wandb: # frequently used args
+  project: Lift3D
+  group: null
+  name: ${agent.name}_${task_name}_${camera_name}
+  notes: ${task_name}
+  reinit: True
+  mode: online
+  

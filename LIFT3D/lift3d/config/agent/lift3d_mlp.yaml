@@ -1,0 +1,9 @@
+name: Lift3d_MLP
+instantiate_config:
+  _target_: lift3d.models.PointCloudGuidedMLP
+  point_cloud_encoder:
+    _target_: lift3d.models.lift3d.model_loader.lift3d_clip_base
+  point_cloud_dropout_rate: 0.0
+  robot_state_dropout_rate: 0.0
+  policy_hidden_dims: [256, 256, 256]
+  policy_head_init_method: orthogonal

@@ -1,0 +1,17 @@
+name: MetaWorld
+
+dataset_instantiate_config:
+  _target_: lift3d.dataset.MetaWorldDataset
+
+evaluator_instantiate_config:
+  _target_: lift3d.envs.MetaWorldEvaluator
+  max_episode_length: 200
+  image_size: ${image_size}
+  camera_name: ${camera_name}
+  use_point_crop: True
+  num_points: 1024
+  point_cloud_camera_names: 
+    - ${camera_name}
+
+loss_func:
+  _target_: torch.nn.functional.mse_loss

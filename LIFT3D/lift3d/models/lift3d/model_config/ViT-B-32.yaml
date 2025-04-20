@@ -1,0 +1,19 @@
+model : {
+  NAME: PointTransformer,
+  clip_ckpt_path: "ViT-B-32.pt",
+  clip_type: 'ViT-B-32',
+  trans_dim: 768,
+  patch_size: 32,
+  depth: 12,
+  drop_path_rate: 0.1,
+  cls_dim: 40,
+  num_heads: 12,
+  group_size: 32,
+  num_group: 64,
+  encoder_dims: 768,
+  adapter_dim: 16,
+  drop_rate_adapter: 0.1,
+  patchknn: 64,
+  attn1d_dim: 12,
+  img_size: 224
+}

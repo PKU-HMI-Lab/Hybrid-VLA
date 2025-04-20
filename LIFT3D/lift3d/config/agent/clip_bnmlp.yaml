@@ -1,0 +1,10 @@
+name: CLIP_BatchNormMLP
+instantiate_config:
+  _target_: lift3d.models.VisionGuidedBatchNormMLP
+  image_encoder:
+    _target_: lift3d.models.CLIPEncoder
+    model_name: ViT-B/32  # ViT-B/32, ViT-L/14
+    freeze: True
+  policy_hidden_dims: [256, 256, 256]
+  nonlinearity: relu
+  dropout_rate: 0.0

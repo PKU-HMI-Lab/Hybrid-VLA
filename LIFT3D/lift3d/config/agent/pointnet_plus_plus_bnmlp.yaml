@@ -1,0 +1,8 @@
+name: PointNet++_BatchNormMLP
+instantiate_config:
+  _target_: lift3d.models.PointCloudGuidedBatchNormMLP
+  point_cloud_encoder:
+    _target_: lift3d.models.pointnet.model_loader.Pointnet2Enc
+  policy_hidden_dims: [256, 256, 256]
+  nonlinearity: relu
+  dropout_rate: 0.0
