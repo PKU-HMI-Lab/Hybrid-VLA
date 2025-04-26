@@ -399,31 +399,36 @@ class PrismaticVLM(VLM):
 
                 for key, value in pixel_values.items():
                     if key.startswith("front_"):
-                        front_pixel_values[key[len("front_"):]] = value #.to(torch.bfloat16)  # 去掉 "front_" 前缀
+                        front_pixel_values[key[len("front_"):]] = value
                     elif key.startswith("wrist_left_"):
-                        wrist_left_pixel_values[key[len("wrist_left_"):]] = value #.to(torch.bfloat16)  # 去掉 "wrist_left_" 前缀
+                        wrist_left_pixel_values[key[len("wrist_left_"):]] = value
                     elif key.startswith("wrist_"):
-                        wrist_pixel_values[key[len("wrist_"):]] = value #.to(torch.bfloat16)  # 去掉 "wrist_" 前缀
+                        wrist_pixel_values[key[len("wrist_"):]] = value
 
+                # Get features from vision backbone (gradients optional)
                 front_patch_features = self.vision_backbone({k: front_pixel_values[k][multimodal_indices] for k in front_pixel_values})
+                if wrist_pixel_values:
+                    wrist_patch_features = self.vision_backbone({k: wrist_pixel_values[k][multimodal_indices] for k in wrist_pixel_values})
+                if wrist_left_pixel_values:
+                    wrist_left_patch_features = self.vision_backbone({k: wrist_left_pixel_values[k][multimodal_indices] for k in wrist_left_pixel_values})
+            else:
+                patch_features = self.vision_backbone(pixel_values[multimodal_indices])
+
+        # Project features (always with gradients enabled)
+        with torch.set_grad_enabled(True):
+            if isinstance(pixel_values, dict):
                 front_patch_embeddings = self.projector(front_patch_features)
                 patch_embeddings_list = [front_patch_embeddings]
-                if wrist_pixel_values: # process only if not None!
-                    wrist_patch_features = self.vision_backbone({k: wrist_pixel_values[k][multimodal_indices] for k in wrist_pixel_values})
+                if wrist_pixel_values:
                     wrist_patch_embeddings = self.projector(wrist_patch_features)
                     patch_embeddings_list.append(wrist_patch_embeddings)
-                if wrist_left_pixel_values: # process only if not None!
-                    wrist_left_patch_features = self.vision_backbone({k: wrist_left_pixel_values[k][multimodal_indices] for k in wrist_left_pixel_values})
+                if wrist_left_pixel_values:
                     wrist_left_patch_embeddings = self.projector(wrist_left_patch_features)
                     patch_embeddings_list.append(wrist_left_patch_embeddings)
-
-                if len(patch_embeddings_list) > 1:
-                    projected_patch_embeddings = torch.cat(patch_embeddings_list, dim=1)  # 按dim=1拼接
-                else:
-                    projected_patch_embeddings = patch_embeddings_list[0]  # 如果只有一个特征，直接使用它
+                
+                projected_patch_embeddings = torch.cat(patch_embeddings_list, dim=1) if len(patch_embeddings_list) > 1 else patch_embeddings_list[0]
             else:
-                patch_embeddings_list = [self.projector(self.vision_backbone(pixel_values[multimodal_indices]))]
-                projected_patch_embeddings = patch_embeddings_list[0]
+                projected_patch_embeddings = self.projector(patch_features)
 
         input_embeddings = self.llm_backbone.embed_input_ids(input_ids)
         return input_embeddings, projected_patch_embeddings
