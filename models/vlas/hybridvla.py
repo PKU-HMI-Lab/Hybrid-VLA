@@ -517,8 +517,9 @@ class HybridVLA(nn.Module):
             return samples[0].cpu().numpy()
         
         def predict_diff():
-            noise, timestep, sample_fn, model_kwargs, using_cfg = prepare_diffusion()
-            normalized_actions = sample_diffusion(noise, sample_fn, model_kwargs, using_cfg)
+            with torch.autocast("cuda", dtype=autocast_dtype, enabled=self.vlm.enable_mixed_precision_training):
+                noise, timestep, sample_fn, model_kwargs, using_cfg = prepare_diffusion()
+                normalized_actions = sample_diffusion(noise, sample_fn, model_kwargs, using_cfg)
             return unnormalize_actions(normalized_actions)
         
         def predict_ar():
@@ -562,13 +563,8 @@ class HybridVLA(nn.Module):
         
         elif predict_mode == 'diff+ar':
             actions_ar, max_probs = predict_ar()
-            
-            noise, timestep, sample_fn, model_kwargs, using_cfg = prepare_diffusion()
-            normalized_actions_diff = sample_diffusion(noise, sample_fn, model_kwargs, using_cfg)
-            actions_diff = unnormalize_actions(normalized_actions_diff)
-            
+            actions_diff = predict_diff()
             return actions_diff, actions_ar, max_probs
-    
     @torch.inference_mode()
     def predict_action_batch(
         self, image: List[Image], 
