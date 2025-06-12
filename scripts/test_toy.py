@@ -1,5 +1,5 @@
 from PIL import Image
-from vla import load_vla
+from models import load_vla
 import torch
 import numpy as np
 import time
