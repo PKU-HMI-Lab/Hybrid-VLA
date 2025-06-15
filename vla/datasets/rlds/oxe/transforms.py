@@ -28,6 +28,31 @@ from vla.datasets.rlds.utils.data_utils import (
 )
 
 
+def bridge_v2_dataset_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
+
+    trajectory["action"] = tf.concat(
+        [
+            trajectory["action"][:, :6],
+            binarize_gripper_actions(trajectory["action"][:, -1])[:, None],
+        ],
+        axis=1,
+    )
+    
+    trajectory = relabel_bridge_actions(trajectory)
+    trajectory["observation"]["EEF_state"] = trajectory["observation"]["state"][:, :6]
+    trajectory["observation"]["gripper_state"] = trajectory["observation"]["state"][:, -1:]
+    
+    # build proprio
+    trajectory["observation"]["proprio"] = tf.concat(
+        (
+            trajectory["observation"]["EEF_state"],
+            trajectory["observation"]["gripper_state"],
+        ),
+        axis = -1,
+    )
+    return trajectory
+    
+
 def bridge_oxe_dataset_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     """
     Applies to version of Bridge V2 in Open X-Embodiment mixture.
@@ -829,6 +854,7 @@ def identity_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
 # === Registry ===
 OXE_STANDARDIZATION_TRANSFORMS = {
     "bridge_oxe": bridge_oxe_dataset_transform,
+    "bridgev2": bridge_v2_dataset_transform,
     "bridge_orig": bridge_orig_dataset_transform,
     "bridge_dataset": bridge_orig_dataset_transform,
     "ppgm": ppgm_dataset_transform,
