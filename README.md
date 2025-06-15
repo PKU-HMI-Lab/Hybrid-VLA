@@ -215,6 +215,147 @@ See the ``scripts/sim.py`` for more details.
 
 We have documented the test results: [Test_Result](https://pan.baidu.com/s/15-kMaHyHqCSSj3YTwhxvWQ?pwd=c9r2). For more implementation details, please see ``test.sh`` and ``scripts/sim.py``.
 
+## Run on Different Datasets
+
+You may want to train the model on different datasets, thus you need to adjust the code to your own dataset. Here we take bridgev2 dataset as an example:
+
+First, assume that your dataset have been fully prepared with the RLDS format. You should modify the following files:
+
+- `vla/datasets/rlds/oxe/configs.py`
+
+```python
+# === Individual Dataset Configs ===
+OXE_DATASET_CONFIGS = {
+    "rlbench": {
+        "image_obs_keys": {"primary": "front_image", "wrist": "wrist_image","secondary": "wrist_image_left"},
+        "depth_obs_keys": {"primary": None, "secondary": None, "wrist": None},
+        "state_obs_keys": ["base_pose_tool_reached", "gripper_closed"],
+        "state_encoding": StateEncoding.POS_QUAT,
+        "action_encoding": ActionEncoding.EEF_POS,
+    },
+   # ... other dataset configs
+    "bridgev2": {  # Bridge V2 Dataset
+        "image_obs_keys": {"primary": "image_0", "secondary": "image_1", "wrist": None},
+        "depth_obs_keys": {"primary": None, "secondary": None, "wrist": None},
+        "state_obs_keys": ["EEF_state", None, "gripper_state"],
+        "state_encoding": StateEncoding.POS_EULER,
+        "action_encoding": ActionEncoding.EEF_POS,
+    },
+    # ... other dataset configs
+}
+```
+
+- `vla/datasets/rlds/oxe/mixtures.py`
+
+```python
+OXE_NAMED_MIXTURES: Dict[str, List[Tuple[str, float]]] = {
+    # === Bridge V2 Dataset ===
+    "bridgev2": [
+        ("bridgev2", 1.0),                                    # Version of Bridge V2 in Open-X GCP Bucket
+    ],
+    # === RLBench Dataset ===
+    "rlbench": [
+         ("rlbench", 1.0),                                   # Original Version of Bridge V2 from Project Website
+    ],
+    # other dataset mixtures
+}
+```
+
+- `vla/datasets/rlds/oxe/transforms.py`
+
+```python
+def bridge_v2_dataset_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
+
+    trajectory["action"] = tf.concat(
+        [
+            trajectory["action"][:, :6],
+            binarize_gripper_actions(trajectory["action"][:, -1])[:, None],
+        ],
+        axis=1,
+    )
+    
+    trajectory = relabel_bridge_actions(trajectory)
+    trajectory["observation"]["EEF_state"] = trajectory["observation"]["state"][:, :6]
+    trajectory["observation"]["gripper_state"] = trajectory["observation"]["state"][:, -1:]
+    
+    # Note: build trajectory["observation"]["proprio"] here additionally for we'll use the robot state
+    trajectory["observation"]["proprio"] = tf.concat(
+        (
+            trajectory["observation"]["EEF_state"],
+            trajectory["observation"]["gripper_state"],
+        ),
+        axis = -1,
+    )
+    return trajectory
+
+# === Registry ===
+OXE_STANDARDIZATION_TRANSFORMS = {
+    "bridgev2": bridge_v2_dataset_transform,
+    ### other transform registries
+    "rlbench": identity_transform,
+}
+```
+
+- Finally, modify the training script
+
+You only need to change the `DATA_MIX` and remember to carefully adjust the `data_root_dir`
+
+```sh
+export PYTHONPATH=<path-to-Hybrid-VLA>:$PYTHONPATH
+
+FUTURE_ACTION_STEPS=0
+SETTING=<training-setting>
+FREEZE_VISON=true
+FREEZE_LLM=false
+LOAD_DIT=false
+ACTION_TOKENIZER_EXIST=true
+USE_DIFF=true
+AR_DIFF_LOSS=true
+REPEATED_DIFFUSION_STEPS=4
+CLASS_DROPOUT_PROB=0.0
+
+DATA_MIX=bridgev2 # 'rlbench' -> 'bridgev2', corresponds to the key value in vla/datasets/rlds/oxe/mixtures.py
+TASK=<your-task-name>
+NUM_GPUS=8
+NODES=1
+BATCH_SIZE=32
+EPOCHS=300
+LEARNING_RATE=2e-5
+ACTION_DIM=7
+
+DATA_ROOT=<your-rlds-data>
+EXP_ROOT=<runs-dir> #for example, ./runs
+# launch
+torchrun --standalone --nnodes ${NODES} --nproc-per-node ${NUM_GPUS} train.py \
+  --vla.type prism-dinosiglip-224px+oxe+diffusion \
+  --vla.data_mix ${DATA_MIX} \
+  --vla.base_vlm prism-dinosiglip-224px+7b \
+  --need_to_sub 0 \
+  --vla.expected_world_size $((${NUM_GPUS} * ${NODES})) \
+  --vla.per_device_batch_size ${BATCH_SIZE} \
+  --vla.global_batch_size $((${NUM_GPUS} * ${NODES} * ${BATCH_SIZE})) \
+  --vla.learning_rate ${LEARNING_RATE} \
+  --vla.epochs ${EPOCHS} \
+  --vla.freeze_vision_backbone ${FREEZE_VISON} \
+  --vla.freeze_llm_backbone ${FREEZE_LLM} \
+  --data_root_dir ${DATA_ROOT}/${TASK} \ # remember to put the bridgev2 dataset under this dir
+  --run_root_dir ${EXP_ROOT} \
+  --run_id exp_${TASK}_${SETTING} \
+  --image_aug false \
+  --wandb_project hybridvla \
+  --wandb_entity <your-w&b-account> \
+  --save_interval 100 \
+  --action_dim ${ACTION_DIM} \
+  --repeated_diffusion_steps ${REPEATED_DIFFUSION_STEPS} \
+  --action_tokenizer_exist ${ACTION_TOKENIZER_EXIST} \
+  --future_action_window_size ${FUTURE_ACTION_STEPS} \
+  --class_dropout_prob ${CLASS_DROPOUT_PROB} \
+  --use_diff ${USE_DIFF} \
+  --ar_diff_loss ${AR_DIFF_LOSS} \
+  --is_resume False \
+  --pretrained_checkpoint <absolute-path-to-ckpt>
+```
+
 ## 📜️ License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
