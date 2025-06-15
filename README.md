@@ -229,7 +229,7 @@ OXE_DATASET_CONFIGS = {
     "rlbench": {
         "image_obs_keys": {"primary": "front_image", "wrist": "wrist_image","secondary": "wrist_image_left"},
         "depth_obs_keys": {"primary": None, "secondary": None, "wrist": None},
-        "state_obs_keys": ["base_pose_tool_reached", "gripper_closed"],
+        "state_obs_keys": ["proprio"],
         "state_encoding": StateEncoding.POS_QUAT,
         "action_encoding": ActionEncoding.EEF_POS,
     },
@@ -237,7 +237,7 @@ OXE_DATASET_CONFIGS = {
     "bridgev2": {  # Bridge V2 Dataset
         "image_obs_keys": {"primary": "image_0", "secondary": "image_1", "wrist": None},
         "depth_obs_keys": {"primary": None, "secondary": None, "wrist": None},
-        "state_obs_keys": ["EEF_state", None, "gripper_state"],
+        "state_obs_keys": ["proprio"],
         "state_encoding": StateEncoding.POS_EULER,
         "action_encoding": ActionEncoding.EEF_POS,
     },
@@ -278,7 +278,9 @@ def bridge_v2_dataset_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     trajectory["observation"]["EEF_state"] = trajectory["observation"]["state"][:, :6]
     trajectory["observation"]["gripper_state"] = trajectory["observation"]["state"][:, -1:]
     
-    # Note: build trajectory["observation"]["proprio"] here additionally for we'll use the robot state
+    # Note: build trajectory["observation"]["proprio"] here additionally 
+    # for we'll use the robot state key 'proprio' in vla/datasets/rlds/config.py
+    # you can adjust the state_obs_keys to change this logic adaptively
     trajectory["observation"]["proprio"] = tf.concat(
         (
             trajectory["observation"]["EEF_state"],
