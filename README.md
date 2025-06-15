@@ -110,7 +110,7 @@ actions_diff, actions_ar, _ = model.predict_action(
 print(actions_diff)
 ```
 
-## Fully Fine-Tuning
+## 📈 Fully Fine-Tuning
 To fully fine-tune the pretrained models, we use PyTorch Fully Sharded Data Parallel(FSDP).The training script used is from [CogACT](https://github.com/microsoft/CogACT).
 
 First, download our pretrain model, and change `--pretrained_checkpoint` to your local ckpt absolute path.
