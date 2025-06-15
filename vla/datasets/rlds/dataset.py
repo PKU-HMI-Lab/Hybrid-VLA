@@ -171,7 +171,7 @@ def make_dataset_from_rlds(
 
         # add timestep info
         new_obs["timestep"] = tf.range(traj_len)
-        new_obs["proprio"] = tf.cast(traj["observation"]["proprio"], tf.float32)
+        # new_obs["proprio"] = tf.cast(traj["observation"]["proprio"], tf.float32)
 
         # extracts `language_key` into the "task" dict
         task = {}
