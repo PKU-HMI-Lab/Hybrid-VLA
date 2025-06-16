@@ -50,7 +50,9 @@ def make_dataset_from_rlds(
     action_proprio_normalization_type: NormalizationType = NormalizationType.NORMAL,
     dataset_statistics: Optional[Union[dict, str]] = None,
     absolute_action_mask: Optional[List[bool]] = None,
+    absolute_proprio_mask: Optional[List[bool]] = None,
     action_normalization_mask: Optional[List[bool]] = None,
+    proprio_normalization_mask: Optional[List[bool]] = None,
     num_parallel_reads: int = tf.data.AUTOTUNE,
     num_parallel_calls: int = tf.data.AUTOTUNE,
     load_all_data_for_training: bool = True,
@@ -199,8 +201,15 @@ def make_dataset_from_rlds(
                 tf.convert_to_tensor(absolute_action_mask, dtype=tf.bool)[None],
                 [traj_len, 1],
             )
+        
+        if absolute_proprio_mask is not None:
+            if len(absolute_proprio_mask) != traj["action"].shape[-1]:
+                raise ValueError(
+                    f"Length of absolute_proprio_mask ({len(absolute_proprio_mask)}) "
+                    f"does not match action dimension ({traj['action'].shape[-1]})."
+                )
             traj["absolute_proprio_mask"] = tf.tile(
-                tf.convert_to_tensor(absolute_action_mask, dtype=tf.bool)[None],
+                tf.convert_to_tensor(absolute_proprio_mask, dtype=tf.bool)[None],
                 [traj_len, 1],
             )
 
@@ -236,8 +245,14 @@ def make_dataset_from_rlds(
                 f"does not match action dimension ({dataset_statistics['action']['mean'].shape[-1]})."
             )
         dataset_statistics["action"]["mask"] = np.array(action_normalization_mask)
-
-        dataset_statistics["proprio"]["mask"] = np.array(action_normalization_mask)
+        
+    if proprio_normalization_mask is not None:
+        if len(proprio_normalization_mask) != dataset_statistics["proprio"]["mean"].shape[-1]:
+            raise ValueError(
+                f"Length of skip_normalization_mask ({len(proprio_normalization_mask)}) "
+                f"does not match action dimension ({dataset_statistics['proprio']['mean'].shape[-1]})."
+            )
+        dataset_statistics["proprio"]["mask"] = np.array(proprio_normalization_mask)
 
 
     # construct the dataset
