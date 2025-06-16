@@ -35,13 +35,19 @@ def make_oxe_dataset_kwargs(
     # Normalize all action dimensions *except* the gripper
     if dataset_kwargs["action_encoding"] is ActionEncoding.EEF_POS:
         dataset_kwargs["absolute_action_mask"] = [False] * 6 + [True]
+        dataset_kwargs["absolute_proprio_mask"] = [True] * 7
         dataset_kwargs["action_normalization_mask"] = [True] * 6 + [False]
+        dataset_kwargs["proprio_normalization_mask"] = [True] * 6 + [False]
     elif dataset_kwargs["action_encoding"] is ActionEncoding.EEF_POS_BI:
         dataset_kwargs["absolute_action_mask"] = [False] * 6 + [True] + [False] * 6 + [True]
+        dataset_kwargs["absolute_proprio_mask"] = [True] * 14
         dataset_kwargs["action_normalization_mask"] = [True] * 6 + [False] + [True] * 6 + [False]
+        dataset_kwargs["proprio_normalization_mask"] = [True] * 6 + [False] + [True] * 6 + [False]
     elif dataset_kwargs["action_encoding"] is ActionEncoding.EEF_R6:
         dataset_kwargs["absolute_action_mask"] = [False] * 9 + [True]
+        dataset_kwargs["absolute_proprio_mask"] = [True] * 10
         dataset_kwargs["action_normalization_mask"] = [True] * 9 + [False]
+        dataset_kwargs["proprio_normalization_mask"] = [True] * 9 + [False]
     dataset_kwargs["action_proprio_normalization_type"] = action_proprio_normalization_type
 
     # Adjust Loaded Camera Views
