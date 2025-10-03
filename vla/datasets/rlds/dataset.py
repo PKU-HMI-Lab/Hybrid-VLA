@@ -203,10 +203,10 @@ def make_dataset_from_rlds(
             )
         
         if absolute_proprio_mask is not None:
-            if len(absolute_proprio_mask) != traj["proprio"].shape[-1]:
+            if len(absolute_proprio_mask) != traj["observation"]["proprio"].shape[-1]:
                 raise ValueError(
                     f"Length of absolute_proprio_mask ({len(absolute_proprio_mask)}) "
-                    f"does not match action dimension ({traj['proprio'].shape[-1]})."
+                    f"does not match action dimension ({traj['observation']['proprio'].shape[-1]})."
                 )
             traj["absolute_proprio_mask"] = tf.tile(
                 tf.convert_to_tensor(absolute_proprio_mask, dtype=tf.bool)[None],
